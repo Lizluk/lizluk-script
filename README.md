@@ -1,1 +1,1 @@
-# lizluk-script
+lizluk.lua
