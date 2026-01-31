@@ -1,22 +1,36 @@
---// LIZLUK ALL-IN-ONE 🦋 FULL
+--// LIZLUK GHOST GUI 🦋 FULL FINAL (CORE EDITABLE)
 -- Executor only
 
------------------- LOCK ------------------
-local ALLOWED_USERID = 123456789 -- <<< ĐỔI THÀNH USERID CỦA BẠN
+repeat task.wait() until game:IsLoaded()
+
+---------------- SERVICES ----------------
 local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
+
+---------------- USER LOCK ----------------
+local ALLOWED_USERID = 8076792445 -- <<< ĐỔI USERID CỦA BẠN
 if player.UserId ~= ALLOWED_USERID then return end
 
------------------- CONFIG ------------------
+---------------- CONFIG ----------------
 _G.LIZLUK_CONFIG = {
     Core = {
-        Health = 5000, MaxHealth = 5000,
-        BaseDamage = 1, AttackSpeed = 1.5,
-        Stamina = 10000, MaxStamina = 10000
+        MaxHealth = 5000,
+        Health = 5000,
+        MaxStamina = 10000,
+        Stamina = 10000,
+        BaseDamage = 1,
+        AttackSpeed = 1.5
     },
     AttributesGui = {
-        Dexterity = 20, Regeneration = 20, Stamina = 10000,
-        Strength = 500, Stride = 20, StrikeGuard = 20, Vitality = 5000
+        Dexterity = 20,
+        Regeneration = 20,
+        Stamina = 10000,
+        Strength = 500,
+        Stride = 20,
+        StrikeGuard = 20,
+        Vitality = 5000
     },
     StatisticsGui = {
         Enabled = true,
@@ -26,41 +40,59 @@ _G.LIZLUK_CONFIG = {
 }
 local DATA = _G.LIZLUK_CONFIG
 
------------------- APPLY ON RESPAWN ------------------
-local function applyOnce(char)
+---------------- APPLY CORE ----------------
+local function applyCore(char)
     if not char then return end
-    for k,v in pairs(DATA.Core) do pcall(function() char:SetAttribute(k,v) end) end
+
+    for k,v in pairs(DATA.Core) do
+        pcall(function() char:SetAttribute(k,v) end)
+    end
+
     for _,d in ipairs(char:GetDescendants()) do
         if (d:IsA("NumberValue") or d:IsA("IntValue")) and DATA.Core[d.Name] then
             d.Value = DATA.Core[d.Name]
         end
     end
+
     local hum = char:FindFirstChildOfClass("Humanoid")
-    if hum then hum.MaxHealth = DATA.Core.MaxHealth; hum.Health = DATA.Core.Health end
+    if hum then
+        hum.MaxHealth = DATA.Core.MaxHealth
+        hum.Health = math.clamp(DATA.Core.Health, 0, DATA.Core.MaxHealth)
+    end
+end
+
+---------------- APPLY ATTRIBUTES ----------------
+local function applyAttributes()
     pcall(function()
-        local g = player:WaitForChild("PlayerGui")
-        local attr = g.Gui.PlayerFolder.AccountStats.Attributes
+        local attr = player.PlayerGui.Gui.PlayerFolder.AccountStats.Attributes
         for k,v in pairs(DATA.AttributesGui) do
             local o = attr:FindFirstChild(k)
-            if o and o:IsA("ValueBase") then o.Value = v end
+            if o then o.Value = v end
         end
     end)
 end
 
-player.CharacterAdded:Connect(function(c) task.wait(1.2); applyOnce(c) end)
-if player.Character then applyOnce(player.Character) end
+---------------- RESPAWN ----------------
+player.CharacterAdded:Connect(function(c)
+    task.wait(1.2)
+    applyCore(c)
+    applyAttributes()
+end)
+if player.Character then
+    applyCore(player.Character)
+    applyAttributes()
+end
 
------------------- STAT LOOP ------------------
+---------------- STAT LOOP ----------------
 task.spawn(function()
     while player and player.Parent do
         if DATA.StatisticsGui.Enabled then
             pcall(function()
-                local g = player:FindFirstChild("PlayerGui"); if not g then return end
-                local stats = g.Gui.PlayerFolder.AccountStats.Statistics
+                local stats = player.PlayerGui.Gui.PlayerFolder.AccountStats.Statistics
                 for k,v in pairs(DATA.StatisticsGui) do
-                    if k~="Enabled" then
+                    if k ~= "Enabled" then
                         local o = stats:FindFirstChild(k)
-                        if o and o:IsA("ValueBase") then o.Value = v end
+                        if o then o.Value = v end
                     end
                 end
             end)
@@ -69,134 +101,170 @@ task.spawn(function()
     end
 end)
 
------------------- GUI ------------------
-local gui = Instance.new("ScreenGui", player.PlayerGui)
-gui.Name="LizlukGui"; gui.ResetOnSpawn=false
+---------------- GUI ROOT ----------------
+local gui = Instance.new("ScreenGui", gethui())
+gui.ResetOnSpawn = false
 
-local main = Instance.new("Frame", gui)
-main.Size=UDim2.fromScale(0.36,0.64)
-main.Position=UDim2.fromScale(0.32,0.18)
-main.BackgroundColor3=Color3.fromRGB(8,8,12)
-main.BorderSizePixel=0
-Instance.new("UICorner",main).CornerRadius=UDim.new(0,28)
+---------------- MAIN SCROLL ----------------
+local main = Instance.new("ScrollingFrame", gui)
+main.Size = UDim2.fromScale(0.36,0.68)
+main.Position = UDim2.fromScale(0.32,0.16)
+main.CanvasSize = UDim2.fromScale(0,2)
+main.ScrollBarThickness = 6
+main.BackgroundColor3 = Color3.fromRGB(8,8,12)
+main.BorderSizePixel = 0
+Instance.new("UICorner",main).CornerRadius = UDim.new(0,28)
 
-local stroke=Instance.new("UIStroke",main)
-stroke.Color=Color3.fromRGB(255,255,255); stroke.Transparency=0.5
+local stroke = Instance.new("UIStroke", main)
+stroke.Color = Color3.fromRGB(200,170,255)
+stroke.Transparency = 0.35
 
--- Butterfly
-local butterfly=Instance.new("ImageLabel",main)
-butterfly.Image="rbxassetid://IMAGE_ID_BUTTERFLY" -- <<< ĐỔI ID
-butterfly.Size=UDim2.fromScale(0.28,0.22)
-butterfly.Position=UDim2.fromScale(0.36,0.03)
-butterfly.BackgroundTransparency=1
+---------------- TITLE ----------------
+local title = Instance.new("TextLabel", main)
+title.Text = "lizluk"
+title.Font = Enum.Font.GothamBold
+title.TextSize = 36
+title.TextColor3 = Color3.fromRGB(235,225,255)
+title.Size = UDim2.fromScale(1,0.07)
+title.BackgroundTransparency = 1
 
--- Butterfly animation (wing + glow)
-task.spawn(function()
-    local t=0
-    while butterfly.Parent do
-        t+=0.05
-        butterfly.Rotation=math.sin(t)*5
-        stroke.Transparency=0.35+math.abs(math.sin(t))*0.3
-        task.wait(0.03)
-    end
-end)
+---------------- INPUT BOX ----------------
+local function inputBox(label, value, cb, y)
+    local box = Instance.new("TextBox", main)
+    box.Text = label..": "..value
+    box.Size = UDim2.fromScale(0.9,0.055)
+    box.Position = UDim2.fromScale(0.05,y)
+    box.BackgroundColor3 = Color3.fromRGB(20,20,30)
+    box.TextColor3 = Color3.new(1,1,1)
+    box.ClearTextOnFocus = true
+    Instance.new("UICorner", box)
 
-local title=Instance.new("TextLabel",main)
-title.Text="lizluk"; title.Font=Enum.Font.GothamBold
-title.TextSize=36; title.TextColor3=Color3.new(1,1,1)
-title.TextStrokeTransparency=0.35
-title.Size=UDim2.fromScale(1,0.1)
-title.Position=UDim2.fromScale(0,0.26)
-title.BackgroundTransparency=1
-
------------------- HELPERS ------------------
-local function slider(label, min, max, value, cb, y)
-    local frame=Instance.new("Frame",main)
-    frame.Size=UDim2.fromScale(0.9,0.07)
-    frame.Position=UDim2.fromScale(0.05,y)
-    frame.BackgroundColor3=Color3.fromRGB(18,18,26)
-    Instance.new("UICorner",frame)
-
-    local txt=Instance.new("TextLabel",frame)
-    txt.Text=label..": "..value
-    txt.Size=UDim2.fromScale(1,0.45)
-    txt.BackgroundTransparency=1
-    txt.TextColor3=Color3.new(1,1,1)
-    txt.TextSize=14
-
-    local bar=Instance.new("Frame",frame)
-    bar.Position=UDim2.fromScale(0.05,0.6)
-    bar.Size=UDim2.fromScale(0.9,0.18)
-    bar.BackgroundColor3=Color3.fromRGB(40,40,60)
-    Instance.new("UICorner",bar)
-
-    local fill=Instance.new("Frame",bar)
-    fill.Size=UDim2.fromScale((value-min)/(max-min),1)
-    fill.BackgroundColor3=Color3.fromRGB(200,200,255)
-    Instance.new("UICorner",fill)
-
-    local UIS=game:GetService("UserInputService")
-    local dragging=false
-    bar.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then dragging=true end end)
-    UIS.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then dragging=false end end)
-    UIS.InputChanged:Connect(function(i)
-        if dragging and i.UserInputType==Enum.UserInputType.MouseMovement then
-            local r=(i.Position.X-bar.AbsolutePosition.X)/bar.AbsoluteSize.X
-            r=math.clamp(r,0,1)
-            local v=math.floor(min+(max-min)*r)
-            fill.Size=UDim2.fromScale(r,1)
-            txt.Text=label..": "..v
-            cb(v)
+    box.FocusLost:Connect(function(enter)
+        if enter then
+            local n = tonumber(box.Text)
+            if n then
+                cb(n)
+                box.Text = label..": "..n
+            end
         end
     end)
 end
 
-local function input(label, value, cb, y)
-    local b=Instance.new("TextBox",main)
-    b.Text=tostring(value); b.PlaceholderText=label
-    b.Size=UDim2.fromScale(0.9,0.065)
-    b.Position=UDim2.fromScale(0.05,y)
-    b.BackgroundColor3=Color3.fromRGB(20,20,30)
-    b.TextColor3=Color3.new(1,1,1)
-    b.ClearTextOnFocus=false
-    Instance.new("UICorner",b)
-    b.FocusLost:Connect(function(e)
-        if e then local n=tonumber(b.Text); if n then cb(n) end end
-    end)
-end
+---------------- CORE INPUT ----------------
+local y = 0.08
+inputBox("MaxHealth", DATA.Core.MaxHealth, function(n)
+    DATA.Core.MaxHealth = n
+    if player.Character then applyCore(player.Character) end
+end, y)
 
------------------- ATTRIBUTES (SLIDERS) ------------------
-local y=0.38
+y += 0.06
+inputBox("Health", DATA.Core.Health, function(n)
+    DATA.Core.Health = n
+    if player.Character then applyCore(player.Character) end
+end, y)
+
+y += 0.06
+inputBox("MaxStamina", DATA.Core.MaxStamina, function(n)
+    DATA.Core.MaxStamina = n
+    if player.Character then applyCore(player.Character) end
+end, y)
+
+y += 0.06
+inputBox("Stamina", DATA.Core.Stamina, function(n)
+    DATA.Core.Stamina = n
+    if player.Character then applyCore(player.Character) end
+end, y)
+
+---------------- APPLY ATTRIBUTES BUTTON ----------------
+y += 0.07
+local applyBtn = Instance.new("TextButton", main)
+applyBtn.Size = UDim2.fromScale(0.9,0.06)
+applyBtn.Position = UDim2.fromScale(0.05,y)
+applyBtn.Text = "Apply Attributes Now"
+applyBtn.BackgroundColor3 = Color3.fromRGB(55,35,85)
+applyBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", applyBtn)
+
+applyBtn.MouseButton1Click:Connect(applyAttributes)
+
+---------------- ATTRIBUTES ----------------
+y += 0.07
 for k,v in pairs(DATA.AttributesGui) do
-    slider(k,0,10000,v,function(n) DATA.AttributesGui[k]=n end,y)
-    y+=0.075
+    inputBox(k, v, function(n)
+        DATA.AttributesGui[k] = n
+    end, y)
+    y += 0.06
 end
 
------------------- STAT TOGGLE ------------------
-local t=Instance.new("TextButton",main)
-t.Size=UDim2.fromScale(0.9,0.07)
-t.Position=UDim2.fromScale(0.05,y)
-t.BackgroundColor3=Color3.fromRGB(35,35,55)
-t.TextColor3=Color3.new(1,1,1)
-t.Text="Statistics: ON"
-Instance.new("UICorner",t)
-t.MouseButton1Click:Connect(function()
-    DATA.StatisticsGui.Enabled=not DATA.StatisticsGui.Enabled
-    t.Text="Statistics: "..(DATA.StatisticsGui.Enabled and "ON" or "OFF")
+---------------- STAT TOGGLE ----------------
+local toggle = Instance.new("TextButton", main)
+toggle.Size = UDim2.fromScale(0.9,0.055)
+toggle.Position = UDim2.fromScale(0.05,y)
+toggle.Text = "Statistics: ON"
+toggle.BackgroundColor3 = Color3.fromRGB(45,30,70)
+toggle.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", toggle)
+
+toggle.MouseButton1Click:Connect(function()
+    DATA.StatisticsGui.Enabled = not DATA.StatisticsGui.Enabled
+    toggle.Text = "Statistics: "..(DATA.StatisticsGui.Enabled and "ON" or "OFF")
 end)
 
-y+=0.08
-for k,v in pairs(DATA.StatisticsGui) do
-    if k~="Enabled" then
-        input(k,v,function(n) DATA.StatisticsGui[k]=n end,y)
-        y+=0.07
+y += 0.06
+inputBox("TotalDamageGiven", DATA.StatisticsGui.TotalDamageGiven,
+    function(n) DATA.StatisticsGui.TotalDamageGiven = n end, y)
+
+y += 0.06
+inputBox("TotalBossDamageGiven", DATA.StatisticsGui.TotalBossDamageGiven,
+    function(n) DATA.StatisticsGui.TotalBossDamageGiven = n end, y)
+
+---------------- INSERT TOGGLE ----------------
+UIS.InputBegan:Connect(function(i,g)
+    if not g and i.KeyCode == Enum.KeyCode.Insert then
+        gui.Enabled = not gui.Enabled
     end
+end)
+
+---------------- BUTTERFLY ORBIT ----------------
+local BUTTERFLY_ID = "rbxassetid://11254757054"
+local COUNT = 3
+local RADIUS_X, RADIUS_Y = 0.22, 0.28
+local SPEED = 0.8
+
+local butterflies = {}
+for i=1,COUNT do
+    local b = Instance.new("ImageLabel", gui)
+    b.Image = BUTTERFLY_ID
+    b.Size = UDim2.fromScale(0.06,0.09)
+    b.BackgroundTransparency = 1
+    b.ZIndex = 999
+
+    local glow = Instance.new("UIStroke", b)
+    glow.Color = Color3.fromRGB(210,170,255)
+    glow.Thickness = 2
+    glow.Transparency = 0.35
+
+    butterflies[i] = {ui=b, glow=glow, off=(math.pi*2/COUNT)*i}
 end
 
------------------- INSERT TOGGLE ------------------
-local UIS=game:GetService("UserInputService")
-UIS.InputBegan:Connect(function(i,g)
-    if not g and i.KeyCode==Enum.KeyCode.Insert then
-        gui.Enabled=not gui.Enabled
+local t = 0
+RunService.RenderStepped:Connect(function(dt)
+    if not gui.Enabled then return end
+    t += dt*SPEED
+
+    local center = main.AbsolutePosition + main.AbsoluteSize/2
+    local vp = workspace.CurrentCamera.ViewportSize
+
+    for _,d in ipairs(butterflies) do
+        local a = t + d.off
+        local x = center.X + math.cos(a)*(RADIUS_X*vp.X)
+        local y = center.Y + math.sin(a)*(RADIUS_Y*vp.Y)
+
+        d.ui.Position = UDim2.fromOffset(
+            x - d.ui.AbsoluteSize.X/2,
+            y - d.ui.AbsoluteSize.Y/2
+        )
+        d.ui.Rotation = math.sin(a*2)*10
+        d.glow.Transparency = 0.25 + math.abs(math.sin(a))*0.4
     end
 end)
