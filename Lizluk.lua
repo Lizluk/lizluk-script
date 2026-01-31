@@ -1,17 +1,21 @@
---// LIZLUK GHOST GUI 🦋 FULL FINAL (CORE EDITABLE)
+--// LIZLUK GHOST GUI 🦋 FULL FINAL (USERID + TOKEN LOCK)
 -- Executor only
 
 repeat task.wait() until game:IsLoaded()
 
----------------- SERVICES ----------------
+---------------- SECURITY ----------------
 local Players = game:GetService("Players")
-local UIS = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 
----------------- USER LOCK ----------------
-local ALLOWED_USERID = 8076792445 -- <<< ĐỔI USERID CỦA BẠN
+local ALLOWED_USERID = 8076792445 -- USERID CỦA BẠN
+local REQUIRED_TOKEN = "lizluk-ghost-2026"
+
 if player.UserId ~= ALLOWED_USERID then return end
+if _G.LIZLUK_TOKEN ~= REQUIRED_TOKEN then return end
+
+---------------- SERVICES ----------------
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 
 ---------------- CONFIG ----------------
 _G.LIZLUK_CONFIG = {
@@ -57,7 +61,7 @@ local function applyCore(char)
     local hum = char:FindFirstChildOfClass("Humanoid")
     if hum then
         hum.MaxHealth = DATA.Core.MaxHealth
-        hum.Health = math.clamp(DATA.Core.Health, 0, DATA.Core.MaxHealth)
+        hum.Health = math.clamp(DATA.Core.Health,0,DATA.Core.MaxHealth)
     end
 end
 
@@ -78,6 +82,7 @@ player.CharacterAdded:Connect(function(c)
     applyCore(c)
     applyAttributes()
 end)
+
 if player.Character then
     applyCore(player.Character)
     applyAttributes()
@@ -152,48 +157,46 @@ end
 
 ---------------- CORE INPUT ----------------
 local y = 0.08
-inputBox("MaxHealth", DATA.Core.MaxHealth, function(n)
-    DATA.Core.MaxHealth = n
+inputBox("MaxHealth",DATA.Core.MaxHealth,function(n)
+    DATA.Core.MaxHealth=n
     if player.Character then applyCore(player.Character) end
-end, y)
+end,y)
 
-y += 0.06
-inputBox("Health", DATA.Core.Health, function(n)
-    DATA.Core.Health = n
+y+=0.06
+inputBox("Health",DATA.Core.Health,function(n)
+    DATA.Core.Health=n
     if player.Character then applyCore(player.Character) end
-end, y)
+end,y)
 
-y += 0.06
-inputBox("MaxStamina", DATA.Core.MaxStamina, function(n)
-    DATA.Core.MaxStamina = n
+y+=0.06
+inputBox("MaxStamina",DATA.Core.MaxStamina,function(n)
+    DATA.Core.MaxStamina=n
     if player.Character then applyCore(player.Character) end
-end, y)
+end,y)
 
-y += 0.06
-inputBox("Stamina", DATA.Core.Stamina, function(n)
-    DATA.Core.Stamina = n
+y+=0.06
+inputBox("Stamina",DATA.Core.Stamina,function(n)
+    DATA.Core.Stamina=n
     if player.Character then applyCore(player.Character) end
-end, y)
+end,y)
 
 ---------------- APPLY ATTRIBUTES BUTTON ----------------
-y += 0.07
+y+=0.07
 local applyBtn = Instance.new("TextButton", main)
 applyBtn.Size = UDim2.fromScale(0.9,0.06)
 applyBtn.Position = UDim2.fromScale(0.05,y)
 applyBtn.Text = "Apply Attributes Now"
 applyBtn.BackgroundColor3 = Color3.fromRGB(55,35,85)
 applyBtn.TextColor3 = Color3.new(1,1,1)
-Instance.new("UICorner", applyBtn)
+Instance.new("UICorner",applyBtn)
 
 applyBtn.MouseButton1Click:Connect(applyAttributes)
 
 ---------------- ATTRIBUTES ----------------
-y += 0.07
+y+=0.07
 for k,v in pairs(DATA.AttributesGui) do
-    inputBox(k, v, function(n)
-        DATA.AttributesGui[k] = n
-    end, y)
-    y += 0.06
+    inputBox(k,v,function(n) DATA.AttributesGui[k]=n end,y)
+    y+=0.06
 end
 
 ---------------- STAT TOGGLE ----------------
@@ -203,24 +206,16 @@ toggle.Position = UDim2.fromScale(0.05,y)
 toggle.Text = "Statistics: ON"
 toggle.BackgroundColor3 = Color3.fromRGB(45,30,70)
 toggle.TextColor3 = Color3.new(1,1,1)
-Instance.new("UICorner", toggle)
+Instance.new("UICorner",toggle)
 
 toggle.MouseButton1Click:Connect(function()
     DATA.StatisticsGui.Enabled = not DATA.StatisticsGui.Enabled
     toggle.Text = "Statistics: "..(DATA.StatisticsGui.Enabled and "ON" or "OFF")
 end)
 
-y += 0.06
-inputBox("TotalDamageGiven", DATA.StatisticsGui.TotalDamageGiven,
-    function(n) DATA.StatisticsGui.TotalDamageGiven = n end, y)
-
-y += 0.06
-inputBox("TotalBossDamageGiven", DATA.StatisticsGui.TotalBossDamageGiven,
-    function(n) DATA.StatisticsGui.TotalBossDamageGiven = n end, y)
-
 ---------------- INSERT TOGGLE ----------------
 UIS.InputBegan:Connect(function(i,g)
-    if not g and i.KeyCode == Enum.KeyCode.Insert then
+    if not g and i.KeyCode==Enum.KeyCode.Insert then
         gui.Enabled = not gui.Enabled
     end
 end)
@@ -228,7 +223,7 @@ end)
 ---------------- BUTTERFLY ORBIT ----------------
 local BUTTERFLY_ID = "rbxassetid://11254757054"
 local COUNT = 3
-local RADIUS_X, RADIUS_Y = 0.22, 0.28
+local RADIUS_X,RADIUS_Y = 0.22,0.28
 local SPEED = 0.8
 
 local butterflies = {}
