@@ -1,0 +1,580 @@
+--// LIZLUK GHOST GUI 🦋 SOLARA EDITION
+-- Optimized for Solara executor
+
+repeat task.wait() until game:IsLoaded()
+task.wait(3) -- Solara needs extra time
+
+print("🚀 Starting LIZLUK for Solara...")
+
+---------------- SERVICES ----------------
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+
+---------------- USER LOCK ----------------
+local ALLOWED_USERID = 8076792445 -- <<< ĐỔI USERID CỦA BẠN
+if player.UserId ~= ALLOWED_USERID then 
+    warn("⛔ User not authorized")
+    return 
+end
+
+print("✅ User authorized:", player.Name)
+
+---------------- SOLARA-SAFE CLAMP ----------------
+local function safeClamp(val, min, max)
+    if val < min then return min end
+    if val > max then return max end
+    return val
+end
+
+---------------- CONFIG ----------------
+_G.LIZLUK_CONFIG = {
+    Core = {
+        MaxHealth = 5000,
+        Health = 5000,
+        MaxStamina = 10000,
+        Stamina = 10000,
+        BaseDamage = 1,
+        AttackSpeed = 1.5
+    },
+    AttributesGui = {
+        Dexterity = 20,
+        Regeneration = 20,
+        Stamina = 10000,
+        Strength = 500,
+        Stride = 20,
+        StrikeGuard = 20,
+        Vitality = 5000
+    },
+    StatisticsGui = {
+        Enabled = true,
+        TotalBossDamageGiven = 585308,
+        TotalDamageGiven = 1457890
+    },
+    Stealth = {
+        Enabled = true,
+        FakeMaxHealth = 320,
+        FakeMaxStamina = 290
+    }
+}
+local DATA = _G.LIZLUK_CONFIG
+
+---------------- 🛡️ STEALTH (SOLARA-COMPATIBLE) ----------------
+_G.FAKE_STATS = {
+    MaxHealth = DATA.Stealth.FakeMaxHealth,
+    Health = DATA.Stealth.FakeMaxHealth,
+    MaxStamina = DATA.Stealth.FakeMaxStamina,
+    Stamina = DATA.Stealth.FakeMaxStamina,
+    AutoFake = true
+}
+
+-- Check what Solara supports
+local hasMT = pcall(function() return getrawmetatable(game) end)
+local hasNC = pcall(function() return newcclosure end)
+local hasCC = pcall(function() return checkcaller end)
+
+print("🔍 Solara compatibility:")
+print("- Metatable:", hasMT and "✅" or "❌")
+print("- newcclosure:", hasNC and "✅" or "❌")
+print("- checkcaller:", hasCC and "✅" or "❌")
+
+-- Lightweight stealth for Solara (no metatable hooks to avoid chain errors)
+if hasMT and hasNC and hasCC then
+    local success = pcall(function()
+        local mt = getrawmetatable(game)
+        local oldIndex = mt.__index
+        
+        -- Solara-safe: minimal hook, no setreadonly issues
+        if setreadonly then
+            setreadonly(mt, false)
+        elseif make_writeable then
+            make_writeable(mt)
+        end
+        
+        mt.__index = newcclosure(function(self, key)
+            -- Only spoof for player character reads
+            if not checkcaller() then
+                local success, isPlayer = pcall(function()
+                    return self == player.Character or self.Parent == player.Character
+                end)
+                
+                if success and isPlayer then
+                    if key == "Health" then return _G.FAKE_STATS.Health end
+                    if key == "MaxHealth" then return _G.FAKE_STATS.MaxHealth end
+                    if key == "Stamina" then return _G.FAKE_STATS.Stamina end
+                    if key == "MaxStamina" then return _G.FAKE_STATS.MaxStamina end
+                end
+            end
+            
+            return oldIndex(self, key)
+        end)
+        
+        if setreadonly then
+            setreadonly(mt, true)
+        elseif make_readonly then
+            make_readonly(mt)
+        end
+        
+        print("✅ Stealth hooks active (Solara mode)")
+    end)
+    
+    if not success then
+        warn("⚠️ Stealth limited - Solara restrictions detected")
+    end
+else
+    warn("⚠️ Basic mode - Some stealth features disabled")
+end
+
+-- Auto-sync (Solara-safe, no errors)
+task.spawn(function()
+    while task.wait(0.15) do
+        if not _G.FAKE_STATS.AutoFake then continue end
+        
+        pcall(function()
+            local char = player.Character
+            if not char then return end
+            
+            -- Health sync
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum and hum.MaxHealth > 0 then
+                local percent = hum.Health / hum.MaxHealth
+                _G.FAKE_STATS.Health = math.floor(_G.FAKE_STATS.MaxHealth * percent)
+            end
+            
+            -- Stamina sync
+            if DATA.Core.MaxStamina > 0 then
+                local percent = DATA.Core.Stamina / DATA.Core.MaxStamina
+                _G.FAKE_STATS.Stamina = math.floor(_G.FAKE_STATS.MaxStamina * percent)
+            end
+        end)
+    end
+end)
+
+-- Visual spoof (Solara-safe)
+task.spawn(function()
+    while task.wait(0.25) do
+        pcall(function()
+            local char = player.Character
+            if not char or not char:FindFirstChild("Head") then return end
+            
+            for _, obj in ipairs(char.Head:GetDescendants()) do
+                if obj:IsA("TextLabel") and string.find(obj.Text, "/") then
+                    obj.Text = _G.FAKE_STATS.Health .. " / " .. _G.FAKE_STATS.MaxHealth
+                end
+            end
+        end)
+    end
+end)
+
+---------------- APPLY CORE (FIXED FOR SOLARA) ----------------
+local function applyCore(char)
+    if not char then return end
+    
+    print("🔧 Applying core stats...")
+    
+    task.spawn(function()
+        for k,v in pairs(DATA.Core) do
+            pcall(function() 
+                char:SetAttribute(k, v)
+            end)
+        end
+        
+        for _, d in ipairs(char:GetDescendants()) do
+            if (d:IsA("NumberValue") or d:IsA("IntValue")) and DATA.Core[d.Name] then
+                pcall(function()
+                    d.Value = DATA.Core[d.Name]
+                end)
+            end
+        end
+        
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.MaxHealth = DATA.Core.MaxHealth
+            -- Use safe clamp instead of math.clamp
+            hum.Health = safeClamp(DATA.Core.Health, 0, DATA.Core.MaxHealth)
+            print("✅ Core applied - HP:", hum.Health, "/", hum.MaxHealth)
+        end
+    end)
+end
+
+---------------- APPLY ATTRIBUTES (SOLARA-SAFE) ----------------
+local function applyAttributes()
+    task.spawn(function()
+        local success = pcall(function()
+            local gui = player:WaitForChild("PlayerGui", 3)
+            if not gui then return end
+            
+            -- Try main path
+            local attr = gui:FindFirstChild("Gui", true)
+            if attr then
+                attr = attr:FindFirstChild("PlayerFolder", true)
+                if attr then
+                    attr = attr:FindFirstChild("AccountStats", true)
+                    if attr then
+                        attr = attr:FindFirstChild("Attributes", true)
+                    end
+                end
+            end
+            
+            -- Alternative: search entire GUI
+            if not attr then
+                for _, child in ipairs(gui:GetDescendants()) do
+                    if child.Name == "Attributes" then
+                        attr = child
+                        break
+                    end
+                end
+            end
+            
+            if not attr then
+                warn("❌ Attributes GUI not found - may not be loaded yet")
+                return
+            end
+            
+            local count = 0
+            for k,v in pairs(DATA.AttributesGui) do
+                local obj = attr:FindFirstChild(k)
+                if obj and obj:IsA("NumberValue") or obj:IsA("IntValue") then
+                    pcall(function()
+                        obj.Value = v
+                        count = count + 1
+                    end)
+                end
+            end
+            
+            print("✅ Applied", count, "attributes")
+        end)
+        
+        if not success then
+            warn("⚠️ Attributes not applied - GUI structure may differ")
+        end
+    end)
+end
+
+---------------- RESPAWN HANDLER ----------------
+player.CharacterAdded:Connect(function(char)
+    task.wait(1.5)
+    applyCore(char)
+    task.wait(0.5)
+    applyAttributes()
+end)
+
+if player.Character then
+    applyCore(player.Character)
+    task.wait(1)
+    applyAttributes()
+end
+
+---------------- STAT LOOP (SOLARA-SAFE) ----------------
+task.spawn(function()
+    while task.wait(1.5) do
+        if not DATA.StatisticsGui.Enabled then continue end
+        
+        pcall(function()
+            local gui = player.PlayerGui:FindFirstChild("Gui", true)
+            if not gui then return end
+            
+            local stats = gui:FindFirstChild("Statistics", true)
+            if not stats then return end
+            
+            for k,v in pairs(DATA.StatisticsGui) do
+                if k ~= "Enabled" then
+                    local obj = stats:FindFirstChild(k)
+                    if obj then
+                        obj.Value = v
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+---------------- GUI (SOLARA-COMPATIBLE) ----------------
+print("🎨 Creating GUI...")
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "LizlukGUI"
+gui.ResetOnSpawn = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+-- Solara: use CoreGui or PlayerGui
+local guiParent = game:GetService("CoreGui")
+local success = pcall(function()
+    gui.Parent = guiParent
+end)
+
+if not success then
+    gui.Parent = player:WaitForChild("PlayerGui")
+    warn("⚠️ Using PlayerGui (will reset on death)")
+else
+    print("✅ GUI in CoreGui")
+end
+
+---------------- MAIN FRAME ----------------
+local main = Instance.new("ScrollingFrame")
+main.Name = "Main"
+main.Parent = gui
+main.Size = UDim2.fromScale(0.36, 0.68)
+main.Position = UDim2.fromScale(0.32, 0.16)
+main.CanvasSize = UDim2.fromScale(0, 2.2)
+main.ScrollBarThickness = 6
+main.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
+main.BorderSizePixel = 0
+main.Active = true
+main.ScrollingEnabled = true
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 28)
+corner.Parent = main
+
+local stroke = Instance.new("UIStroke")
+stroke.Color = Color3.fromRGB(200, 170, 255)
+stroke.Transparency = 0.35
+stroke.Parent = main
+
+---------------- TITLE ----------------
+local title = Instance.new("TextLabel")
+title.Name = "Title"
+title.Parent = main
+title.Text = "lizluk 🛡️"
+title.Font = Enum.Font.GothamBold
+title.TextSize = 36
+title.TextColor3 = Color3.fromRGB(235, 225, 255)
+title.Size = UDim2.fromScale(1, 0.07)
+title.BackgroundTransparency = 1
+title.TextScaled = false
+
+---------------- INPUT BOXES ----------------
+local function createInput(labelText, initialValue, callback, yPos)
+    local box = Instance.new("TextBox")
+    box.Parent = main
+    box.Text = labelText .. ": " .. tostring(initialValue)
+    box.Size = UDim2.fromScale(0.9, 0.055)
+    box.Position = UDim2.fromScale(0.05, yPos)
+    box.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    box.TextColor3 = Color3.new(1, 1, 1)
+    box.Font = Enum.Font.Gotham
+    box.TextSize = 14
+    box.ClearTextOnFocus = true
+    box.PlaceholderText = "Enter number..."
+    
+    local boxCorner = Instance.new("UICorner")
+    boxCorner.Parent = box
+    
+    box.FocusLost:Connect(function(enter)
+        if enter then
+            local num = tonumber(box.Text)
+            if num then
+                callback(num)
+                box.Text = labelText .. ": " .. tostring(num)
+                print("✏️", labelText, "→", num)
+            else
+                box.Text = labelText .. ": " .. tostring(initialValue)
+            end
+        end
+    end)
+    
+    return box
+end
+
+---------------- CORE SECTION ----------------
+local y = 0.08
+
+createInput("MaxHealth", DATA.Core.MaxHealth, function(n)
+    DATA.Core.MaxHealth = n
+    if player.Character then applyCore(player.Character) end
+end, y)
+
+y = y + 0.06
+createInput("Health", DATA.Core.Health, function(n)
+    DATA.Core.Health = n
+    if player.Character then applyCore(player.Character) end
+end, y)
+
+y = y + 0.06
+createInput("MaxStamina", DATA.Core.MaxStamina, function(n)
+    DATA.Core.MaxStamina = n
+    if player.Character then applyCore(player.Character) end
+end, y)
+
+y = y + 0.06
+createInput("Stamina", DATA.Core.Stamina, function(n)
+    DATA.Core.Stamina = n
+    if player.Character then applyCore(player.Character) end
+end, y)
+
+---------------- STEALTH SECTION ----------------
+y = y + 0.08
+
+local stealthLabel = Instance.new("TextLabel")
+stealthLabel.Parent = main
+stealthLabel.Text = "🛡️ ANTI-DETECTION"
+stealthLabel.Size = UDim2.fromScale(0.9, 0.05)
+stealthLabel.Position = UDim2.fromScale(0.05, y)
+stealthLabel.BackgroundColor3 = Color3.fromRGB(85, 35, 55)
+stealthLabel.TextColor3 = Color3.new(1, 1, 1)
+stealthLabel.Font = Enum.Font.GothamBold
+stealthLabel.TextSize = 16
+
+local stealthCorner = Instance.new("UICorner")
+stealthCorner.Parent = stealthLabel
+
+y = y + 0.06
+
+local stealthBtn = Instance.new("TextButton")
+stealthBtn.Parent = main
+stealthBtn.Size = UDim2.fromScale(0.9, 0.055)
+stealthBtn.Position = UDim2.fromScale(0.05, y)
+stealthBtn.Text = "Stealth: " .. (DATA.Stealth.Enabled and "ON" or "OFF")
+stealthBtn.BackgroundColor3 = DATA.Stealth.Enabled and Color3.fromRGB(45, 70, 30) or Color3.fromRGB(70, 30, 30)
+stealthBtn.TextColor3 = Color3.new(1, 1, 1)
+stealthBtn.Font = Enum.Font.Gotham
+stealthBtn.TextSize = 14
+
+local stealthBtnCorner = Instance.new("UICorner")
+stealthBtnCorner.Parent = stealthBtn
+
+stealthBtn.MouseButton1Click:Connect(function()
+    DATA.Stealth.Enabled = not DATA.Stealth.Enabled
+    _G.FAKE_STATS.AutoFake = DATA.Stealth.Enabled
+    stealthBtn.Text = "Stealth: " .. (DATA.Stealth.Enabled and "ON" or "OFF")
+    stealthBtn.BackgroundColor3 = DATA.Stealth.Enabled and Color3.fromRGB(45, 70, 30) or Color3.fromRGB(70, 30, 30)
+    print("🛡️ Stealth:", DATA.Stealth.Enabled and "ON" or "OFF")
+end)
+
+y = y + 0.06
+createInput("Fake MaxHP", DATA.Stealth.FakeMaxHealth, function(n)
+    DATA.Stealth.FakeMaxHealth = n
+    _G.FAKE_STATS.MaxHealth = n
+end, y)
+
+y = y + 0.06
+createInput("Fake MaxStam", DATA.Stealth.FakeMaxStamina, function(n)
+    DATA.Stealth.FakeMaxStamina = n
+    _G.FAKE_STATS.MaxStamina = n
+end, y)
+
+---------------- APPLY BUTTON ----------------
+y = y + 0.07
+
+local applyBtn = Instance.new("TextButton")
+applyBtn.Parent = main
+applyBtn.Size = UDim2.fromScale(0.9, 0.06)
+applyBtn.Position = UDim2.fromScale(0.05, y)
+applyBtn.Text = "Apply Attributes Now"
+applyBtn.BackgroundColor3 = Color3.fromRGB(55, 35, 85)
+applyBtn.TextColor3 = Color3.new(1, 1, 1)
+applyBtn.Font = Enum.Font.GothamBold
+applyBtn.TextSize = 16
+
+local applyCorner = Instance.new("UICorner")
+applyCorner.Parent = applyBtn
+
+applyBtn.MouseButton1Click:Connect(function()
+    print("🔄 Manual apply...")
+    applyAttributes()
+end)
+
+---------------- ATTRIBUTES ----------------
+y = y + 0.07
+
+for k, v in pairs(DATA.AttributesGui) do
+    createInput(k, v, function(n)
+        DATA.AttributesGui[k] = n
+    end, y)
+    y = y + 0.06
+end
+
+---------------- STATISTICS ----------------
+local statsBtn = Instance.new("TextButton")
+statsBtn.Parent = main
+statsBtn.Size = UDim2.fromScale(0.9, 0.055)
+statsBtn.Position = UDim2.fromScale(0.05, y)
+statsBtn.Text = "Statistics: " .. (DATA.StatisticsGui.Enabled and "ON" or "OFF")
+statsBtn.BackgroundColor3 = Color3.fromRGB(45, 30, 70)
+statsBtn.TextColor3 = Color3.new(1, 1, 1)
+statsBtn.Font = Enum.Font.Gotham
+statsBtn.TextSize = 14
+
+local statsCorner = Instance.new("UICorner")
+statsCorner.Parent = statsBtn
+
+statsBtn.MouseButton1Click:Connect(function()
+    DATA.StatisticsGui.Enabled = not DATA.StatisticsGui.Enabled
+    statsBtn.Text = "Statistics: " .. (DATA.StatisticsGui.Enabled and "ON" or "OFF")
+    print("📊 Stats:", DATA.StatisticsGui.Enabled and "ON" or "OFF")
+end)
+
+y = y + 0.06
+createInput("TotalDamageGiven", DATA.StatisticsGui.TotalDamageGiven, function(n)
+    DATA.StatisticsGui.TotalDamageGiven = n
+end, y)
+
+y = y + 0.06
+createInput("TotalBossDamageGiven", DATA.StatisticsGui.TotalBossDamageGiven, function(n)
+    DATA.StatisticsGui.TotalBossDamageGiven = n
+end, y)
+
+---------------- TOGGLE KEY ----------------
+UIS.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.Insert then
+        gui.Enabled = not gui.Enabled
+        print("👁️ GUI:", gui.Enabled and "VISIBLE" or "HIDDEN")
+    end
+end)
+
+---------------- BUTTERFLIES ----------------
+local BUTTERFLY_ID = "rbxassetid://11254757054"
+local COUNT = 3
+local RADIUS_X, RADIUS_Y = 0.22, 0.28
+local SPEED = 0.8
+
+local butterflies = {}
+for i = 1, COUNT do
+    local img = Instance.new("ImageLabel")
+    img.Parent = gui
+    img.Image = BUTTERFLY_ID
+    img.Size = UDim2.fromScale(0.06, 0.09)
+    img.BackgroundTransparency = 1
+    img.ZIndex = 999
+    
+    local glow = Instance.new("UIStroke")
+    glow.Color = Color3.fromRGB(210, 170, 255)
+    glow.Thickness = 2
+    glow.Transparency = 0.35
+    glow.Parent = img
+    
+    table.insert(butterflies, {
+        ui = img,
+        glow = glow,
+        offset = (math.pi * 2 / COUNT) * i
+    })
+end
+
+local time = 0
+RunService.RenderStepped:Connect(function(dt)
+    if not gui.Enabled then return end
+    time = time + dt * SPEED
+    
+    local center = main.AbsolutePosition + main.AbsoluteSize / 2
+    local viewport = workspace.CurrentCamera.ViewportSize
+    
+    for _, butterfly in ipairs(butterflies) do
+        local angle = time + butterfly.offset
+        local x = center.X + math.cos(angle) * (RADIUS_X * viewport.X)
+        local y = center.Y + math.sin(angle) * (RADIUS_Y * viewport.Y)
+        
+        butterfly.ui.Position = UDim2.fromOffset(
+            x - butterfly.ui.AbsoluteSize.X / 2,
+            y - butterfly.ui.AbsoluteSize.Y / 2
+        )
+        butterfly.ui.Rotation = math.sin(angle * 2) * 10
+        butterfly.glow.Transparency = 0.25 + math.abs(math.sin(angle)) * 0.4
+    end
+end)
+
+print("✨ LIZLUK LOADED FOR SOLARA ✨")
+print("📌 Press INSERT to toggle")
+print("🛡️ Stealth:", DATA.Stealth.Enabled and "ACTIVE" or "OFF")
