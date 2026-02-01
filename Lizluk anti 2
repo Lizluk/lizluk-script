@@ -134,211 +134,94 @@ else
     warn("⚠️ Basic mode")
 end
 
--- Auto-sync OPTIMIZED - Chỉ update khi thay đổi
-_G.LAST_REAL_HP = 0
-_G.LAST_REAL_STAM = 0
-
+-- Auto-sync - Đơn giản và hiệu quả
 task.spawn(function()
-    while task.wait(0.1) do -- Giảm từ 0.05 xuống 0.1 để tối ưu
+    while task.wait(0.1) do
         if not _G.FAKE_STATS.AutoFake then continue end
         
-        pcall(function()
-            local char = player.Character
-            if not char then return end
-            
-            -- Sync Health
-            local hum = char:FindFirstChildOfClass("Humanoid")
-            if hum and hum.MaxHealth > 0 then
-                local realHP = hum.Health
-                
-                -- CHỈ update nếu HP thay đổi
-                if math.abs(realHP - _G.LAST_REAL_HP) >= 1 then
-                    _G.LAST_REAL_HP = realHP
-                    
-                    local percentHP = realHP / hum.MaxHealth
-                    _G.FAKE_STATS.Health = math.floor(_G.FAKE_STATS.MaxHealth * percentHP)
-                end
-            end
-            
-            -- Sync Stamina (tối ưu - cache CoreAssets)
-            if not char:FindFirstChild("CoreAssets") then return end
-            
-            local stamObj = char.CoreAssets:FindFirstChild("Stamina")
-            local maxStamObj = char.CoreAssets:FindFirstChild("MaxStamina")
-            
-            if stamObj and maxStamObj and maxStamObj.Value > 0 then
-                local realStam = stamObj.Value
-                
-                -- CHỈ update nếu Stamina thay đổi
-                if math.abs(realStam - _G.LAST_REAL_STAM) >= 1 then
-                    _G.LAST_REAL_STAM = realStam
-                    
-                    local percentStam = realStam / maxStamObj.Value
-                    _G.FAKE_STATS.Stamina = math.floor(_G.FAKE_STATS.MaxStamina * percentStam)
-                end
-            end
-        end)
-    end
-end)
-
--- CUSTOM FAKE HEALTHBAR - Giải pháp cho MaxHealth > 320
-_G.CUSTOM_HEALTHBAR = nil
-
-local function createCustomHealthbar()
-    pcall(function()
-        local char = player.Character
-        if not char then return end
-        
-        local head = char:FindFirstChild("Head")
-        if not head then return end
-        
-        -- Xóa healthbar cũ nếu có
-        if _G.CUSTOM_HEALTHBAR then
-            pcall(function() _G.CUSTOM_HEALTHBAR:Destroy() end)
-        end
-        
-        -- Tạo BillboardGui fake
-        local billboard = Instance.new("BillboardGui")
-        billboard.Name = "FakeHealthDisplay"
-        billboard.Parent = head
-        billboard.Size = UDim2.new(4, 0, 0.5, 0)
-        billboard.StudsOffset = Vector3.new(0, 2.5, 0)
-        billboard.AlwaysOnTop = true
-        billboard.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-        
-        -- Background frame
-        local bgFrame = Instance.new("Frame")
-        bgFrame.Name = "Background"
-        bgFrame.Parent = billboard
-        bgFrame.Size = UDim2.new(1, 0, 1, 0)
-        bgFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-        bgFrame.BorderSizePixel = 0
-        
-        local bgCorner = Instance.new("UICorner")
-        bgCorner.CornerRadius = UDim.new(0, 4)
-        bgCorner.Parent = bgFrame
-        
-        -- Health bar (fake)
-        local healthBar = Instance.new("Frame")
-        healthBar.Name = "HealthBar"
-        healthBar.Parent = bgFrame
-        healthBar.Size = UDim2.new(1, 0, 1, 0) -- Sẽ được update theo %
-        healthBar.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Xanh lá
-        healthBar.BorderSizePixel = 0
-        
-        local healthCorner = Instance.new("UICorner")
-        healthCorner.CornerRadius = UDim.new(0, 4)
-        healthCorner.Parent = healthBar
-        
-        -- Text label (fake)
-        local textLabel = Instance.new("TextLabel")
-        textLabel.Name = "HealthText"
-        textLabel.Parent = bgFrame
-        textLabel.Size = UDim2.new(1, 0, 1, 0)
-        textLabel.BackgroundTransparency = 1
-        textLabel.Text = _G.FAKE_STATS.Health .. " / " .. _G.FAKE_STATS.MaxHealth
-        textLabel.TextColor3 = Color3.new(1, 1, 1)
-        textLabel.TextScaled = true
-        textLabel.Font = Enum.Font.GothamBold
-        textLabel.ZIndex = 2
-        
-        _G.CUSTOM_HEALTHBAR = billboard
-        print("✅ Custom healthbar created")
-    end)
-end
-
--- Update custom healthbar
-task.spawn(function()
-    while task.wait(0.1) do -- Update mỗi 0.1s (10fps) - đủ mượt mà không lag
-        if not _G.FAKE_STATS.AutoFake then continue end
-        
-        pcall(function()
-            local char = player.Character
-            if not char then return end
-            
-            -- Tạo healthbar nếu chưa có hoặc bị mất
-            if not _G.CUSTOM_HEALTHBAR or not _G.CUSTOM_HEALTHBAR.Parent then
-                createCustomHealthbar()
-            end
-            
-            -- Update healthbar
-            if _G.CUSTOM_HEALTHBAR then
-                local healthBar = _G.CUSTOM_HEALTHBAR:FindFirstChild("Background", true)
-                if healthBar then
-                    healthBar = healthBar:FindFirstChild("HealthBar")
-                    if healthBar then
-                        -- Tính % fake
-                        local fakePercent = _G.FAKE_STATS.Health / _G.FAKE_STATS.MaxHealth
-                        
-                        -- Update size
-                        healthBar.Size = UDim2.new(fakePercent, 0, 1, 0)
-                        
-                        -- Update màu theo %
-                        if fakePercent > 0.6 then
-                            healthBar.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Xanh
-                        elseif fakePercent > 0.3 then
-                            healthBar.BackgroundColor3 = Color3.fromRGB(255, 255, 0) -- Vàng
-                        else
-                            healthBar.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Đỏ
-                        end
-                    end
-                end
-                
-                -- Update text
-                local textLabel = _G.CUSTOM_HEALTHBAR:FindFirstChild("Background", true)
-                if textLabel then
-                    textLabel = textLabel:FindFirstChild("HealthText")
-                    if textLabel then
-                        textLabel.Text = _G.FAKE_STATS.Health .. " / " .. _G.FAKE_STATS.MaxHealth
-                    end
-                end
-            end
-        end)
-    end
-end)
-
--- Tự động tạo lại healthbar khi respawn
-player.CharacterAdded:Connect(function(char)
-    task.wait(2)
-    createCustomHealthbar()
-end)
-
----------------- APPLY CORE ----------------
--- Debug monitor OPTIMIZED
-task.spawn(function()
-    while task.wait(5) do -- Tăng từ 2s lên 5s để giảm spam console
         pcall(function()
             local char = player.Character
             if not char then return end
             
             local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum and hum.MaxHealth > 0 then
+                -- ẨN healthbar mặc định của Roblox
+                hum.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+                
+                -- Tính % HP thật
+                local percent = hum.Health / hum.MaxHealth
+                
+                -- Update fake stats theo %
+                _G.FAKE_STATS.Health = math.floor(DATA.Stealth.FakeMaxHealth * percent)
+                _G.FAKE_STATS.MaxHealth = DATA.Stealth.FakeMaxHealth
+            end
+            
+            -- Sync Stamina
             local coreAssets = char:FindFirstChild("CoreAssets")
-            local realStam, realMaxStam = 0, 0
-            
             if coreAssets then
                 local stamObj = coreAssets:FindFirstChild("Stamina")
                 local maxStamObj = coreAssets:FindFirstChild("MaxStamina")
-                if stamObj then realStam = stamObj.Value end
-                if maxStamObj then realMaxStam = maxStamObj.Value end
+                
+                if stamObj and maxStamObj and maxStamObj.Value > 0 then
+                    local percent = stamObj.Value / maxStamObj.Value
+                    _G.FAKE_STATS.Stamina = math.floor(DATA.Stealth.FakeMaxStamina * percent)
+                    _G.FAKE_STATS.MaxStamina = DATA.Stealth.FakeMaxStamina
+                end
             end
-            
-            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-            print("📊 REAL: HP", hum and math.floor(hum.Health) or "?", "/", hum and math.floor(hum.MaxHealth) or "?",
-                  "| Stam", math.floor(realStam), "/", math.floor(realMaxStam))
-            print("🎭 FAKE: HP", _G.FAKE_STATS.Health, "/", _G.FAKE_STATS.MaxHealth,
-                  "| Stam", _G.FAKE_STATS.Stamina, "/", _G.FAKE_STATS.MaxStamina)
-            
-            if hum and hum.MaxHealth > 0 then
-                local realP = math.floor((hum.Health / hum.MaxHealth) * 100)
-                local fakeP = math.floor((_G.FAKE_STATS.Health / _G.FAKE_STATS.MaxHealth) * 100)
-                print("HP%: Real=" .. realP .. "% | Fake=" .. fakeP .. "%", 
-                      math.abs(realP - fakeP) < 3 and "✅" or "⚠️")
-            end
-            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         end)
     end
 end)
 
+-- Visual spoof - Fake CUSTOM healthbar của game
+task.spawn(function()
+    while task.wait(0.1) do
+        if not _G.FAKE_STATS.AutoFake then continue end
+        
+        pcall(function()
+            local char = player.Character
+            if not char then return end
+            
+            local head = char:FindFirstChild("Head")
+            if not head then return end
+            
+            -- Tìm TẤT CẢ BillboardGui (game này dùng custom healthbar)
+            for _, billboard in ipairs(head:GetChildren()) do
+                if billboard:IsA("BillboardGui") then
+                    -- Tìm Frame có màu đỏ (healthbar)
+                    for _, frame in ipairs(billboard:GetDescendants()) do
+                        if frame:IsA("Frame") then
+                            local color = frame.BackgroundColor3
+                            
+                            -- Detect healthbar (màu đỏ/xanh)
+                            if (color.R > 0.5 and color.G < 0.3) or  -- Đỏ
+                               (color.G > 0.5 and color.R < 0.3) or  -- Xanh
+                               frame.Name:lower():find("health") or
+                               frame.Name:lower():find("hp") then
+                                
+                                -- Tính % fake
+                                local percent = _G.FAKE_STATS.Health / _G.FAKE_STATS.MaxHealth
+                                
+                                -- Update size theo fake %
+                                if frame.Size.X.Scale > 0 then
+                                    frame.Size = UDim2.new(percent, frame.Size.X.Offset, frame.Size.Y.Scale, frame.Size.Y.Offset)
+                                end
+                            end
+                        end
+                        
+                        -- Fake text số HP
+                        if (frame:IsA("TextLabel") or frame:IsA("TextBox")) and frame.Text then
+                            if string.match(frame.Text, "%d+%s*/%s*%d+") or string.match(frame.Text, "%d+") then
+                                frame.Text = _G.FAKE_STATS.Health .. " / " .. _G.FAKE_STATS.MaxHealth
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+---------------- APPLY CORE ----------------
 local function applyCore(char)
     if not char then return end
     
