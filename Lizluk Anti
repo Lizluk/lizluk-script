@@ -466,17 +466,28 @@ end)
 -- Stealth section
 createHeader("🛡️ ANTI-DETECTION", Color3.fromRGB(85, 35, 55))
 
-local stealthBtn = createButton(
-    "Stealth: " .. (DATA.Stealth.Enabled and "ON" or "OFF"),
-    DATA.Stealth.Enabled and Color3.fromRGB(45, 70, 30) or Color3.fromRGB(70, 30, 30),
-    function()
-        DATA.Stealth.Enabled = not DATA.Stealth.Enabled
-        _G.FAKE_STATS.AutoFake = DATA.Stealth.Enabled
-        stealthBtn.Text = "Stealth: " .. (DATA.Stealth.Enabled and "ON" or "OFF")
-        stealthBtn.BackgroundColor3 = DATA.Stealth.Enabled and Color3.fromRGB(45, 70, 30) or Color3.fromRGB(70, 30, 30)
-        print("🛡️ Stealth:", DATA.Stealth.Enabled and "ON" or "OFF")
-    end
-)
+-- Create stealth button
+local stealthBtn = Instance.new("TextButton")
+stealthBtn.Parent = main
+stealthBtn.Text = "Stealth: " .. (DATA.Stealth.Enabled and "ON" or "OFF")
+stealthBtn.Size = UDim2.new(1, -20, 0, 35)
+stealthBtn.BackgroundColor3 = DATA.Stealth.Enabled and Color3.fromRGB(45, 70, 30) or Color3.fromRGB(70, 30, 30)
+stealthBtn.TextColor3 = Color3.new(1, 1, 1)
+stealthBtn.Font = Enum.Font.Gotham
+stealthBtn.TextSize = 14
+stealthBtn.LayoutOrder = currentOrder
+currentOrder = currentOrder + 1
+
+local stealthCorner = Instance.new("UICorner")
+stealthCorner.Parent = stealthBtn
+
+stealthBtn.MouseButton1Click:Connect(function()
+    DATA.Stealth.Enabled = not DATA.Stealth.Enabled
+    _G.FAKE_STATS.AutoFake = DATA.Stealth.Enabled
+    stealthBtn.Text = "Stealth: " .. (DATA.Stealth.Enabled and "ON" or "OFF")
+    stealthBtn.BackgroundColor3 = DATA.Stealth.Enabled and Color3.fromRGB(45, 70, 30) or Color3.fromRGB(70, 30, 30)
+    print("🛡️ Stealth:", DATA.Stealth.Enabled and "ON" or "OFF")
+end)
 
 createInput("Fake MaxHP", DATA.Stealth.FakeMaxHealth, function(n)
     DATA.Stealth.FakeMaxHealth = n
@@ -506,15 +517,27 @@ end
 -- Statistics section
 createHeader("📈 STATISTICS", Color3.fromRGB(55, 45, 75))
 
-local statsBtn = createButton(
-    "Statistics: " .. (DATA.StatisticsGui.Enabled and "ON" or "OFF"),
-    Color3.fromRGB(45, 30, 70),
-    function()
-        DATA.StatisticsGui.Enabled = not DATA.StatisticsGui.Enabled
-        statsBtn.Text = "Statistics: " .. (DATA.StatisticsGui.Enabled and "ON" or "OFF")
-        print("📊 Stats:", DATA.StatisticsGui.Enabled and "ON" or "OFF")
-    end
-)
+-- Create statistics button
+local statsBtn = Instance.new("TextButton")
+statsBtn.Parent = main
+statsBtn.Text = "Statistics: " .. (DATA.StatisticsGui.Enabled and "ON" or "OFF")
+statsBtn.Size = UDim2.new(1, -20, 0, 35)
+statsBtn.BackgroundColor3 = DATA.StatisticsGui.Enabled and Color3.fromRGB(45, 70, 30) or Color3.fromRGB(70, 30, 30)
+statsBtn.TextColor3 = Color3.new(1, 1, 1)
+statsBtn.Font = Enum.Font.Gotham
+statsBtn.TextSize = 14
+statsBtn.LayoutOrder = currentOrder
+currentOrder = currentOrder + 1
+
+local statsCorner = Instance.new("UICorner")
+statsCorner.Parent = statsBtn
+
+statsBtn.MouseButton1Click:Connect(function()
+    DATA.StatisticsGui.Enabled = not DATA.StatisticsGui.Enabled
+    statsBtn.Text = "Statistics: " .. (DATA.StatisticsGui.Enabled and "ON" or "OFF")
+    statsBtn.BackgroundColor3 = DATA.StatisticsGui.Enabled and Color3.fromRGB(45, 70, 30) or Color3.fromRGB(70, 30, 30)
+    print("📊 Stats:", DATA.StatisticsGui.Enabled and "ON" or "OFF")
+end)
 
 createInput("TotalDamageGiven", DATA.StatisticsGui.TotalDamageGiven, function(n)
     DATA.StatisticsGui.TotalDamageGiven = n
