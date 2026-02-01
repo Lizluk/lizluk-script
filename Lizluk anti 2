@@ -89,7 +89,7 @@ print("- Metatable:", hasMT and "✅" or "❌")
 print("- newcclosure:", hasNC and "✅" or "❌")
 print("- checkcaller:", hasCC and "✅" or "❌")
 
--- Lightweight stealth
+-- Lightweight stealth with extended stamina support
 if hasMT and hasNC and hasCC then
     local success = pcall(function()
         local mt = getrawmetatable(game)
@@ -103,15 +103,35 @@ if hasMT and hasNC and hasCC then
         
         mt.__index = newcclosure(function(self, key)
             if not checkcaller() then
-                local success, isPlayer = pcall(function()
+                local success, isPlayerChar = pcall(function()
                     return self == player.Character or self.Parent == player.Character
                 end)
                 
-                if success and isPlayer then
+                -- Hook character stats
+                if success and isPlayerChar then
                     if key == "Health" then return _G.FAKE_STATS.Health end
                     if key == "MaxHealth" then return _G.FAKE_STATS.MaxHealth end
                     if key == "Stamina" then return _G.FAKE_STATS.Stamina end
                     if key == "MaxStamina" then return _G.FAKE_STATS.MaxStamina end
+                end
+                
+                -- Hook NumberValue/IntValue for stamina
+                local checkStamina = pcall(function()
+                    if self.Parent == player.Character and (self:IsA("NumberValue") or self:IsA("IntValue")) then
+                        if self.Name == "Stamina" and key == "Value" then
+                            return true
+                        elseif self.Name == "MaxStamina" and key == "Value" then
+                            return true
+                        end
+                    end
+                end)
+                
+                if checkStamina then
+                    if self.Name == "Stamina" and key == "Value" then
+                        return _G.FAKE_STATS.Stamina
+                    elseif self.Name == "MaxStamina" and key == "Value" then
+                        return _G.FAKE_STATS.MaxStamina
+                    end
                 end
             end
             
@@ -124,7 +144,7 @@ if hasMT and hasNC and hasCC then
             make_readonly(mt)
         end
         
-        print("✅ Anti-detection active")
+        print("✅ Anti-detection active (Health + Stamina)")
     end)
     
     if not success then
@@ -134,39 +154,80 @@ else
     warn("⚠️ Basic mode")
 end
 
--- Auto-sync
+-- Auto-sync fake stats based on real stats percentage
 task.spawn(function()
-    while task.wait(0.15) do
+    while task.wait(0.1) do
         if not _G.FAKE_STATS.AutoFake then continue end
         
         pcall(function()
             local char = player.Character
             if not char then return end
             
+            -- Sync Health (from Humanoid)
             local hum = char:FindFirstChildOfClass("Humanoid")
             if hum and hum.MaxHealth > 0 then
-                local percent = hum.Health / hum.MaxHealth
-                _G.FAKE_STATS.Health = math.floor(_G.FAKE_STATS.MaxHealth * percent)
+                local realMaxHP = hum.MaxHealth
+                local realHP = hum.Health
+                local percentHP = realHP / realMaxHP
+                _G.FAKE_STATS.Health = math.floor(_G.FAKE_STATS.MaxHealth * percentHP)
             end
             
-            if DATA.Core.MaxStamina > 0 then
-                local percent = DATA.Core.Stamina / DATA.Core.MaxStamina
-                _G.FAKE_STATS.Stamina = math.floor(_G.FAKE_STATS.MaxStamina * percent)
+            -- Sync Stamina (from Character Attributes or NumberValue)
+            local realMaxStam = char:GetAttribute("MaxStamina")
+            local realStam = char:GetAttribute("Stamina")
+            
+            -- Fallback: search for NumberValue/IntValue
+            if not realMaxStam or not realStam then
+                for _, obj in ipairs(char:GetDescendants()) do
+                    if obj:IsA("NumberValue") or obj:IsA("IntValue") then
+                        if obj.Name == "MaxStamina" then
+                            realMaxStam = obj.Value
+                        elseif obj.Name == "Stamina" then
+                            realStam = obj.Value
+                        end
+                    end
+                end
+            end
+            
+            -- Calculate fake stamina based on percentage
+            if realMaxStam and realStam and realMaxStam > 0 then
+                local percentStam = realStam / realMaxStam
+                _G.FAKE_STATS.Stamina = math.floor(_G.FAKE_STATS.MaxStamina * percentStam)
             end
         end)
     end
 end)
 
--- Visual spoof
+-- Visual spoof for health and stamina displays
 task.spawn(function()
-    while task.wait(0.25) do
+    while task.wait(0.2) do
+        if not _G.FAKE_STATS.AutoFake then continue end
+        
         pcall(function()
             local char = player.Character
             if not char or not char:FindFirstChild("Head") then return end
             
+            -- Fake health text on head
             for _, obj in ipairs(char.Head:GetDescendants()) do
-                if obj:IsA("TextLabel") and string.find(obj.Text, "/") then
-                    obj.Text = _G.FAKE_STATS.Health .. " / " .. _G.FAKE_STATS.MaxHealth
+                if obj:IsA("TextLabel") then
+                    -- Health display (format: "123 / 456")
+                    if string.find(obj.Text, "/") and (string.find(obj.Text, tostring(math.floor(_G.FAKE_STATS.Health))) or string.match(obj.Text, "%d+%s*/")) then
+                        obj.Text = _G.FAKE_STATS.Health .. " / " .. _G.FAKE_STATS.MaxHealth
+                    end
+                end
+            end
+            
+            -- Fake stamina display in PlayerGui
+            local gui = player:FindFirstChild("PlayerGui")
+            if gui then
+                for _, obj in ipairs(gui:GetDescendants()) do
+                    if obj:IsA("TextLabel") then
+                        -- Stamina display
+                        if string.find(string.lower(obj.Name), "stamina") or 
+                           (string.find(obj.Text, "/") and string.find(string.lower(obj.Parent.Name or ""), "stamina")) then
+                            obj.Text = _G.FAKE_STATS.Stamina .. " / " .. _G.FAKE_STATS.MaxStamina
+                        end
+                    end
                 end
             end
         end)
@@ -174,6 +235,35 @@ task.spawn(function()
 end)
 
 ---------------- APPLY CORE ----------------
+-- Debug monitor for real stats
+task.spawn(function()
+    while task.wait(2) do
+        pcall(function()
+            local char = player.Character
+            if not char then return end
+            
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            local realMaxStam = char:GetAttribute("MaxStamina")
+            local realStam = char:GetAttribute("Stamina")
+            
+            -- Fallback search
+            if not realMaxStam or not realStam then
+                for _, obj in ipairs(char:GetDescendants()) do
+                    if obj:IsA("NumberValue") or obj:IsA("IntValue") then
+                        if obj.Name == "MaxStamina" then realMaxStam = obj.Value end
+                        if obj.Name == "Stamina" then realStam = obj.Value end
+                    end
+                end
+            end
+            
+            print("📊 REAL Stats - HP:", hum and math.floor(hum.Health) or "?", "/", hum and math.floor(hum.MaxHealth) or "?", 
+                  "| Stam:", realStam and math.floor(realStam) or "?", "/", realMaxStam and math.floor(realMaxStam) or "?")
+            print("🎭 FAKE Stats - HP:", _G.FAKE_STATS.Health, "/", _G.FAKE_STATS.MaxHealth,
+                  "| Stam:", _G.FAKE_STATS.Stamina, "/", _G.FAKE_STATS.MaxStamina)
+        end)
+    end
+end)
+
 local function applyCore(char)
     if not char then return end
     
