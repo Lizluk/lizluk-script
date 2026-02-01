@@ -1,10 +1,10 @@
---// LIZLUK GHOST GUI 🦋 SOLARA EDITION
--- Optimized for Solara executor
+--// LIZLUK GHOST GUI 🦋 SOLARA EDITION + TOKEN AUTH
+-- Optimized for Solara executor with authentication
 
 repeat task.wait() until game:IsLoaded()
-task.wait(3) -- Solara needs extra time
+task.wait(3)
 
-print("🚀 Starting LIZLUK for Solara...")
+print("🚀 LIZLUK Loading...")
 
 ---------------- SERVICES ----------------
 local Players = game:GetService("Players")
@@ -12,13 +12,23 @@ local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 
----------------- USER LOCK ----------------
+---------------- 🔐 TOKEN + USER AUTHENTICATION ----------------
+local REQUIRED_TOKEN = "lizluk-ghost-2026"
 local ALLOWED_USERID = 8076792445 -- <<< ĐỔI USERID CỦA BẠN
+
+-- Check token
+if not _G.LIZLUK_TOKEN or _G.LIZLUK_TOKEN ~= REQUIRED_TOKEN then
+    player:Kick("⛔ Invalid Token! Use: _G.LIZLUK_TOKEN = 'lizluk-ghost-2026'")
+    return
+end
+
+-- Check user
 if player.UserId ~= ALLOWED_USERID then 
-    warn("⛔ User not authorized")
+    player:Kick("⛔ User not authorized | UserID: " .. player.UserId)
     return 
 end
 
+print("✅ Token valid")
 print("✅ User authorized:", player.Name)
 
 ---------------- SOLARA-SAFE CLAMP ----------------
@@ -69,23 +79,22 @@ _G.FAKE_STATS = {
     AutoFake = true
 }
 
--- Check what Solara supports
+-- Check Solara support
 local hasMT = pcall(function() return getrawmetatable(game) end)
 local hasNC = pcall(function() return newcclosure end)
 local hasCC = pcall(function() return checkcaller end)
 
-print("🔍 Solara compatibility:")
+print("🔍 Solara features:")
 print("- Metatable:", hasMT and "✅" or "❌")
 print("- newcclosure:", hasNC and "✅" or "❌")
 print("- checkcaller:", hasCC and "✅" or "❌")
 
--- Lightweight stealth for Solara (no metatable hooks to avoid chain errors)
+-- Lightweight stealth
 if hasMT and hasNC and hasCC then
     local success = pcall(function()
         local mt = getrawmetatable(game)
         local oldIndex = mt.__index
         
-        -- Solara-safe: minimal hook, no setreadonly issues
         if setreadonly then
             setreadonly(mt, false)
         elseif make_writeable then
@@ -93,7 +102,6 @@ if hasMT and hasNC and hasCC then
         end
         
         mt.__index = newcclosure(function(self, key)
-            -- Only spoof for player character reads
             if not checkcaller() then
                 local success, isPlayer = pcall(function()
                     return self == player.Character or self.Parent == player.Character
@@ -116,17 +124,17 @@ if hasMT and hasNC and hasCC then
             make_readonly(mt)
         end
         
-        print("✅ Stealth hooks active (Solara mode)")
+        print("✅ Anti-detection active")
     end)
     
     if not success then
-        warn("⚠️ Stealth limited - Solara restrictions detected")
+        warn("⚠️ Stealth limited")
     end
 else
-    warn("⚠️ Basic mode - Some stealth features disabled")
+    warn("⚠️ Basic mode")
 end
 
--- Auto-sync (Solara-safe, no errors)
+-- Auto-sync
 task.spawn(function()
     while task.wait(0.15) do
         if not _G.FAKE_STATS.AutoFake then continue end
@@ -135,14 +143,12 @@ task.spawn(function()
             local char = player.Character
             if not char then return end
             
-            -- Health sync
             local hum = char:FindFirstChildOfClass("Humanoid")
             if hum and hum.MaxHealth > 0 then
                 local percent = hum.Health / hum.MaxHealth
                 _G.FAKE_STATS.Health = math.floor(_G.FAKE_STATS.MaxHealth * percent)
             end
             
-            -- Stamina sync
             if DATA.Core.MaxStamina > 0 then
                 local percent = DATA.Core.Stamina / DATA.Core.MaxStamina
                 _G.FAKE_STATS.Stamina = math.floor(_G.FAKE_STATS.MaxStamina * percent)
@@ -151,7 +157,7 @@ task.spawn(function()
     end
 end)
 
--- Visual spoof (Solara-safe)
+-- Visual spoof
 task.spawn(function()
     while task.wait(0.25) do
         pcall(function()
@@ -167,11 +173,11 @@ task.spawn(function()
     end
 end)
 
----------------- APPLY CORE (FIXED FOR SOLARA) ----------------
+---------------- APPLY CORE ----------------
 local function applyCore(char)
     if not char then return end
     
-    print("🔧 Applying core stats...")
+    print("🔧 Applying core...")
     
     task.spawn(function()
         for k,v in pairs(DATA.Core) do
@@ -191,21 +197,19 @@ local function applyCore(char)
         local hum = char:FindFirstChildOfClass("Humanoid")
         if hum then
             hum.MaxHealth = DATA.Core.MaxHealth
-            -- Use safe clamp instead of math.clamp
             hum.Health = safeClamp(DATA.Core.Health, 0, DATA.Core.MaxHealth)
             print("✅ Core applied - HP:", hum.Health, "/", hum.MaxHealth)
         end
     end)
 end
 
----------------- APPLY ATTRIBUTES (SOLARA-SAFE) ----------------
+---------------- APPLY ATTRIBUTES ----------------
 local function applyAttributes()
     task.spawn(function()
         local success = pcall(function()
             local gui = player:WaitForChild("PlayerGui", 3)
             if not gui then return end
             
-            -- Try main path
             local attr = gui:FindFirstChild("Gui", true)
             if attr then
                 attr = attr:FindFirstChild("PlayerFolder", true)
@@ -217,7 +221,6 @@ local function applyAttributes()
                 end
             end
             
-            -- Alternative: search entire GUI
             if not attr then
                 for _, child in ipairs(gui:GetDescendants()) do
                     if child.Name == "Attributes" then
@@ -228,14 +231,14 @@ local function applyAttributes()
             end
             
             if not attr then
-                warn("❌ Attributes GUI not found - may not be loaded yet")
+                warn("❌ Attributes GUI not found")
                 return
             end
             
             local count = 0
             for k,v in pairs(DATA.AttributesGui) do
                 local obj = attr:FindFirstChild(k)
-                if obj and obj:IsA("NumberValue") or obj:IsA("IntValue") then
+                if obj and (obj:IsA("NumberValue") or obj:IsA("IntValue")) then
                     pcall(function()
                         obj.Value = v
                         count = count + 1
@@ -247,12 +250,12 @@ local function applyAttributes()
         end)
         
         if not success then
-            warn("⚠️ Attributes not applied - GUI structure may differ")
+            warn("⚠️ Attributes not applied")
         end
     end)
 end
 
----------------- RESPAWN HANDLER ----------------
+---------------- RESPAWN ----------------
 player.CharacterAdded:Connect(function(char)
     task.wait(1.5)
     applyCore(char)
@@ -266,7 +269,7 @@ if player.Character then
     applyAttributes()
 end
 
----------------- STAT LOOP (SOLARA-SAFE) ----------------
+---------------- STAT LOOP ----------------
 task.spawn(function()
     while task.wait(1.5) do
         if not DATA.StatisticsGui.Enabled then continue end
@@ -290,7 +293,7 @@ task.spawn(function()
     end
 end)
 
----------------- GUI (SOLARA-COMPATIBLE) ----------------
+---------------- GUI ----------------
 print("🎨 Creating GUI...")
 
 local gui = Instance.new("ScreenGui")
@@ -298,7 +301,6 @@ gui.Name = "LizlukGUI"
 gui.ResetOnSpawn = false
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
--- Solara: use CoreGui or PlayerGui
 local guiParent = game:GetService("CoreGui")
 local success = pcall(function()
     gui.Parent = guiParent
@@ -306,23 +308,35 @@ end)
 
 if not success then
     gui.Parent = player:WaitForChild("PlayerGui")
-    warn("⚠️ Using PlayerGui (will reset on death)")
+    warn("⚠️ Using PlayerGui")
 else
     print("✅ GUI in CoreGui")
 end
 
----------------- MAIN FRAME ----------------
+---------------- MAIN FRAME (FIXED SCROLLING) ----------------
 local main = Instance.new("ScrollingFrame")
 main.Name = "Main"
 main.Parent = gui
 main.Size = UDim2.fromScale(0.36, 0.68)
 main.Position = UDim2.fromScale(0.32, 0.16)
-main.CanvasSize = UDim2.fromScale(0, 2.2)
-main.ScrollBarThickness = 6
 main.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
 main.BorderSizePixel = 0
+main.ScrollBarThickness = 10
+main.ScrollBarImageColor3 = Color3.fromRGB(200, 170, 255)
 main.Active = true
+main.Selectable = true
 main.ScrollingEnabled = true
+main.ScrollingDirection = Enum.ScrollingDirection.Y
+main.CanvasSize = UDim2.new(0, 0, 0, 0)
+main.AutomaticCanvasSize = Enum.AutomaticSize.Y
+
+-- Add padding for better layout
+local padding = Instance.new("UIPadding")
+padding.PaddingTop = UDim.new(0, 10)
+padding.PaddingBottom = UDim.new(0, 20)
+padding.PaddingLeft = UDim.new(0, 5)
+padding.PaddingRight = UDim.new(0, 5)
+padding.Parent = main
 
 local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 28)
@@ -333,6 +347,12 @@ stroke.Color = Color3.fromRGB(200, 170, 255)
 stroke.Transparency = 0.35
 stroke.Parent = main
 
+-- Add layout for auto-positioning
+local layout = Instance.new("UIListLayout")
+layout.Parent = main
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+layout.Padding = UDim.new(0, 8)
+
 ---------------- TITLE ----------------
 local title = Instance.new("TextLabel")
 title.Name = "Title"
@@ -341,23 +361,27 @@ title.Text = "lizluk 🛡️"
 title.Font = Enum.Font.GothamBold
 title.TextSize = 36
 title.TextColor3 = Color3.fromRGB(235, 225, 255)
-title.Size = UDim2.fromScale(1, 0.07)
+title.Size = UDim2.new(1, -10, 0, 50)
 title.BackgroundTransparency = 1
 title.TextScaled = false
+title.LayoutOrder = 1
 
----------------- INPUT BOXES ----------------
-local function createInput(labelText, initialValue, callback, yPos)
+---------------- INPUT FUNCTION ----------------
+local currentOrder = 2
+
+local function createInput(labelText, initialValue, callback)
     local box = Instance.new("TextBox")
     box.Parent = main
     box.Text = labelText .. ": " .. tostring(initialValue)
-    box.Size = UDim2.fromScale(0.9, 0.055)
-    box.Position = UDim2.fromScale(0.05, yPos)
+    box.Size = UDim2.new(1, -20, 0, 35)
     box.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
     box.TextColor3 = Color3.new(1, 1, 1)
     box.Font = Enum.Font.Gotham
     box.TextSize = 14
     box.ClearTextOnFocus = true
     box.PlaceholderText = "Enter number..."
+    box.LayoutOrder = currentOrder
+    currentOrder = currentOrder + 1
     
     local boxCorner = Instance.new("UICorner")
     boxCorner.Parent = box
@@ -378,143 +402,127 @@ local function createInput(labelText, initialValue, callback, yPos)
     return box
 end
 
----------------- CORE SECTION ----------------
-local y = 0.08
+local function createButton(labelText, bgColor, callback)
+    local btn = Instance.new("TextButton")
+    btn.Parent = main
+    btn.Text = labelText
+    btn.Size = UDim2.new(1, -20, 0, 35)
+    btn.BackgroundColor3 = bgColor
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.Font = Enum.Font.Gotham
+    btn.TextSize = 14
+    btn.LayoutOrder = currentOrder
+    currentOrder = currentOrder + 1
+    
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.Parent = btn
+    
+    btn.MouseButton1Click:Connect(callback)
+    
+    return btn
+end
 
+local function createHeader(text, color)
+    local header = Instance.new("TextLabel")
+    header.Parent = main
+    header.Text = text
+    header.Size = UDim2.new(1, -20, 0, 30)
+    header.BackgroundColor3 = color
+    header.TextColor3 = Color3.new(1, 1, 1)
+    header.Font = Enum.Font.GothamBold
+    header.TextSize = 16
+    header.LayoutOrder = currentOrder
+    currentOrder = currentOrder + 1
+    
+    local headerCorner = Instance.new("UICorner")
+    headerCorner.Parent = header
+    
+    return header
+end
+
+---------------- BUILD GUI ----------------
+
+-- Core section
 createInput("MaxHealth", DATA.Core.MaxHealth, function(n)
     DATA.Core.MaxHealth = n
     if player.Character then applyCore(player.Character) end
-end, y)
+end)
 
-y = y + 0.06
 createInput("Health", DATA.Core.Health, function(n)
     DATA.Core.Health = n
     if player.Character then applyCore(player.Character) end
-end, y)
+end)
 
-y = y + 0.06
 createInput("MaxStamina", DATA.Core.MaxStamina, function(n)
     DATA.Core.MaxStamina = n
     if player.Character then applyCore(player.Character) end
-end, y)
+end)
 
-y = y + 0.06
 createInput("Stamina", DATA.Core.Stamina, function(n)
     DATA.Core.Stamina = n
     if player.Character then applyCore(player.Character) end
-end, y)
-
----------------- STEALTH SECTION ----------------
-y = y + 0.08
-
-local stealthLabel = Instance.new("TextLabel")
-stealthLabel.Parent = main
-stealthLabel.Text = "🛡️ ANTI-DETECTION"
-stealthLabel.Size = UDim2.fromScale(0.9, 0.05)
-stealthLabel.Position = UDim2.fromScale(0.05, y)
-stealthLabel.BackgroundColor3 = Color3.fromRGB(85, 35, 55)
-stealthLabel.TextColor3 = Color3.new(1, 1, 1)
-stealthLabel.Font = Enum.Font.GothamBold
-stealthLabel.TextSize = 16
-
-local stealthCorner = Instance.new("UICorner")
-stealthCorner.Parent = stealthLabel
-
-y = y + 0.06
-
-local stealthBtn = Instance.new("TextButton")
-stealthBtn.Parent = main
-stealthBtn.Size = UDim2.fromScale(0.9, 0.055)
-stealthBtn.Position = UDim2.fromScale(0.05, y)
-stealthBtn.Text = "Stealth: " .. (DATA.Stealth.Enabled and "ON" or "OFF")
-stealthBtn.BackgroundColor3 = DATA.Stealth.Enabled and Color3.fromRGB(45, 70, 30) or Color3.fromRGB(70, 30, 30)
-stealthBtn.TextColor3 = Color3.new(1, 1, 1)
-stealthBtn.Font = Enum.Font.Gotham
-stealthBtn.TextSize = 14
-
-local stealthBtnCorner = Instance.new("UICorner")
-stealthBtnCorner.Parent = stealthBtn
-
-stealthBtn.MouseButton1Click:Connect(function()
-    DATA.Stealth.Enabled = not DATA.Stealth.Enabled
-    _G.FAKE_STATS.AutoFake = DATA.Stealth.Enabled
-    stealthBtn.Text = "Stealth: " .. (DATA.Stealth.Enabled and "ON" or "OFF")
-    stealthBtn.BackgroundColor3 = DATA.Stealth.Enabled and Color3.fromRGB(45, 70, 30) or Color3.fromRGB(70, 30, 30)
-    print("🛡️ Stealth:", DATA.Stealth.Enabled and "ON" or "OFF")
 end)
 
-y = y + 0.06
+-- Stealth section
+createHeader("🛡️ ANTI-DETECTION", Color3.fromRGB(85, 35, 55))
+
+local stealthBtn = createButton(
+    "Stealth: " .. (DATA.Stealth.Enabled and "ON" or "OFF"),
+    DATA.Stealth.Enabled and Color3.fromRGB(45, 70, 30) or Color3.fromRGB(70, 30, 30),
+    function()
+        DATA.Stealth.Enabled = not DATA.Stealth.Enabled
+        _G.FAKE_STATS.AutoFake = DATA.Stealth.Enabled
+        stealthBtn.Text = "Stealth: " .. (DATA.Stealth.Enabled and "ON" or "OFF")
+        stealthBtn.BackgroundColor3 = DATA.Stealth.Enabled and Color3.fromRGB(45, 70, 30) or Color3.fromRGB(70, 30, 30)
+        print("🛡️ Stealth:", DATA.Stealth.Enabled and "ON" or "OFF")
+    end
+)
+
 createInput("Fake MaxHP", DATA.Stealth.FakeMaxHealth, function(n)
     DATA.Stealth.FakeMaxHealth = n
     _G.FAKE_STATS.MaxHealth = n
-end, y)
+end)
 
-y = y + 0.06
 createInput("Fake MaxStam", DATA.Stealth.FakeMaxStamina, function(n)
     DATA.Stealth.FakeMaxStamina = n
     _G.FAKE_STATS.MaxStamina = n
-end, y)
+end)
 
----------------- APPLY BUTTON ----------------
-y = y + 0.07
-
-local applyBtn = Instance.new("TextButton")
-applyBtn.Parent = main
-applyBtn.Size = UDim2.fromScale(0.9, 0.06)
-applyBtn.Position = UDim2.fromScale(0.05, y)
-applyBtn.Text = "Apply Attributes Now"
-applyBtn.BackgroundColor3 = Color3.fromRGB(55, 35, 85)
-applyBtn.TextColor3 = Color3.new(1, 1, 1)
-applyBtn.Font = Enum.Font.GothamBold
-applyBtn.TextSize = 16
-
-local applyCorner = Instance.new("UICorner")
-applyCorner.Parent = applyBtn
-
-applyBtn.MouseButton1Click:Connect(function()
+-- Apply button
+createButton("Apply Attributes Now", Color3.fromRGB(55, 35, 85), function()
     print("🔄 Manual apply...")
     applyAttributes()
 end)
 
----------------- ATTRIBUTES ----------------
-y = y + 0.07
+-- Attributes section
+createHeader("📊 ATTRIBUTES", Color3.fromRGB(35, 55, 85))
 
 for k, v in pairs(DATA.AttributesGui) do
     createInput(k, v, function(n)
         DATA.AttributesGui[k] = n
-    end, y)
-    y = y + 0.06
+    end)
 end
 
----------------- STATISTICS ----------------
-local statsBtn = Instance.new("TextButton")
-statsBtn.Parent = main
-statsBtn.Size = UDim2.fromScale(0.9, 0.055)
-statsBtn.Position = UDim2.fromScale(0.05, y)
-statsBtn.Text = "Statistics: " .. (DATA.StatisticsGui.Enabled and "ON" or "OFF")
-statsBtn.BackgroundColor3 = Color3.fromRGB(45, 30, 70)
-statsBtn.TextColor3 = Color3.new(1, 1, 1)
-statsBtn.Font = Enum.Font.Gotham
-statsBtn.TextSize = 14
+-- Statistics section
+createHeader("📈 STATISTICS", Color3.fromRGB(55, 45, 75))
 
-local statsCorner = Instance.new("UICorner")
-statsCorner.Parent = statsBtn
+local statsBtn = createButton(
+    "Statistics: " .. (DATA.StatisticsGui.Enabled and "ON" or "OFF"),
+    Color3.fromRGB(45, 30, 70),
+    function()
+        DATA.StatisticsGui.Enabled = not DATA.StatisticsGui.Enabled
+        statsBtn.Text = "Statistics: " .. (DATA.StatisticsGui.Enabled and "ON" or "OFF")
+        print("📊 Stats:", DATA.StatisticsGui.Enabled and "ON" or "OFF")
+    end
+)
 
-statsBtn.MouseButton1Click:Connect(function()
-    DATA.StatisticsGui.Enabled = not DATA.StatisticsGui.Enabled
-    statsBtn.Text = "Statistics: " .. (DATA.StatisticsGui.Enabled and "ON" or "OFF")
-    print("📊 Stats:", DATA.StatisticsGui.Enabled and "ON" or "OFF")
-end)
-
-y = y + 0.06
 createInput("TotalDamageGiven", DATA.StatisticsGui.TotalDamageGiven, function(n)
     DATA.StatisticsGui.TotalDamageGiven = n
-end, y)
+end)
 
-y = y + 0.06
 createInput("TotalBossDamageGiven", DATA.StatisticsGui.TotalBossDamageGiven, function(n)
     DATA.StatisticsGui.TotalBossDamageGiven = n
-end, y)
+end)
 
 ---------------- TOGGLE KEY ----------------
 UIS.InputBegan:Connect(function(input, gameProcessed)
@@ -575,6 +583,8 @@ RunService.RenderStepped:Connect(function(dt)
     end
 end)
 
-print("✨ LIZLUK LOADED FOR SOLARA ✨")
+print("✨ LIZLUK LOADED ✨")
+print("🔐 Token: ✅")
+print("👤 User:", player.Name, "(ID:", player.UserId, ")")
 print("📌 Press INSERT to toggle")
 print("🛡️ Stealth:", DATA.Stealth.Enabled and "ACTIVE" or "OFF")
