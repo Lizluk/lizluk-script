@@ -3,16 +3,19 @@
 
 repeat task.wait() until game:IsLoaded()
 
----------------- SERVICES ----------------
+---------------- SECURITY ----------------
 local Players = game:GetService("Players")
-local UIS = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 
----------------- USER LOCK ----------------
-local ALLOWED_USERID = 8076792445 -- <<< ĐỔI USERID CỦA BẠN
-if player.UserId ~= ALLOWED_USERID then return end
+local ALLOWED_USERID = 8076792445 -- USERID CỦA BẠN
+local REQUIRED_TOKEN = "lizluk-ghost-2026"
 
+if player.UserId ~= ALLOWED_USERID then return end
+if _G.LIZLUK_TOKEN ~= REQUIRED_TOKEN then return end
+
+---------------- SERVICES ----------------
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 ---------------- CONFIG ----------------
 _G.LIZLUK_CONFIG = {
     Core = {
