@@ -89,12 +89,11 @@ print("- Metatable:", hasMT and "✅" or "❌")
 print("- newcclosure:", hasNC and "✅" or "❌")
 print("- checkcaller:", hasCC and "✅" or "❌")
 
--- Lightweight stealth with extended stamina support
+-- Lightweight stealth
 if hasMT and hasNC and hasCC then
     local success = pcall(function()
         local mt = getrawmetatable(game)
         local oldIndex = mt.__index
-        local oldNewIndex = mt.__newindex
         
         if setreadonly then
             setreadonly(mt, false)
@@ -102,76 +101,21 @@ if hasMT and hasNC and hasCC then
             make_writeable(mt)
         end
         
-        -- Hook __index để fake khi query
         mt.__index = newcclosure(function(self, key)
             if not checkcaller() then
-                -- Hook 1: Character's Humanoid (Health)
-                local success1, isPlayerChar = pcall(function()
+                local success, isPlayer = pcall(function()
                     return self == player.Character or self.Parent == player.Character
                 end)
                 
-                if success1 and isPlayerChar then
+                if success and isPlayer then
                     if key == "Health" then return _G.FAKE_STATS.Health end
                     if key == "MaxHealth" then return _G.FAKE_STATS.MaxHealth end
-                end
-                
-                -- Hook 2: CoreAssets NumberValue/IntValue (Stamina)
-                local success2, isCoreAssets = pcall(function()
-                    if not player.Character then return false end
-                    local coreAssets = player.Character:FindFirstChild("CoreAssets")
-                    if not coreAssets then return false end
-                    return self.Parent == coreAssets and (self:IsA("NumberValue") or self:IsA("IntValue"))
-                end)
-                
-                if success2 and isCoreAssets then
-                    if self.Name == "Stamina" and key == "Value" then
-                        return _G.FAKE_STATS.Stamina
-                    elseif self.Name == "MaxStamina" and key == "Value" then
-                        return _G.FAKE_STATS.MaxStamina
-                    end
-                end
-                
-                -- Hook 3: Any stamina NumberValue/IntValue in character
-                local success3, isStaminaValue = pcall(function()
-                    if not player.Character then return false end
-                    return self.Parent and self.Parent.Parent == player.Character and 
-                           (self:IsA("NumberValue") or self:IsA("IntValue"))
-                end)
-                
-                if success3 and isStaminaValue then
-                    if self.Name == "Stamina" and key == "Value" then
-                        return _G.FAKE_STATS.Stamina
-                    elseif self.Name == "MaxStamina" and key == "Value" then
-                        return _G.FAKE_STATS.MaxStamina
-                    end
+                    if key == "Stamina" then return _G.FAKE_STATS.Stamina end
+                    if key == "MaxStamina" then return _G.FAKE_STATS.MaxStamina end
                 end
             end
             
             return oldIndex(self, key)
-        end)
-        
-        -- Hook __newindex để chặn khi game cố gắng replicate real health
-        mt.__newindex = newcclosure(function(self, key, value)
-            -- Không can thiệp vào internal calls
-            if checkcaller() then
-                return oldNewIndex(self, key, value)
-            end
-            
-            -- Chặn remote events cố gắng set health/stamina
-            local success, isHumanoid = pcall(function()
-                return self:IsA("Humanoid") and self.Parent == player.Character
-            end)
-            
-            if success and isHumanoid then
-                -- Chặn external scripts đọc real health
-                if key == "Health" or key == "MaxHealth" then
-                    -- Vẫn cho phép set (để game hoạt động bình thường)
-                    -- nhưng sẽ bị fake bởi __index hook
-                    return oldNewIndex(self, key, value)
-                end
-            end
-            
-            return oldNewIndex(self, key, value)
         end)
         
         if setreadonly then
@@ -180,7 +124,7 @@ if hasMT and hasNC and hasCC then
             make_readonly(mt)
         end
         
-        print("✅ Anti-detection active (Health + Stamina + Replication)")
+        print("✅ Anti-detection active")
     end)
     
     if not success then
@@ -190,265 +134,205 @@ else
     warn("⚠️ Basic mode")
 end
 
--- Auto-sync fake stats based on real stats percentage
+-- Auto-sync OPTIMIZED - Chỉ update khi thay đổi
+_G.LAST_REAL_HP = 0
+_G.LAST_REAL_STAM = 0
+
 task.spawn(function()
-    while task.wait(0.05) do -- Tăng tốc độ update lên để sync nhanh hơn
+    while task.wait(0.1) do -- Giảm từ 0.05 xuống 0.1 để tối ưu
         if not _G.FAKE_STATS.AutoFake then continue end
         
         pcall(function()
             local char = player.Character
             if not char then return end
             
-            -- Sync Health (from Humanoid) - REAL TIME
+            -- Sync Health
             local hum = char:FindFirstChildOfClass("Humanoid")
             if hum and hum.MaxHealth > 0 then
-                local realMaxHP = hum.MaxHealth
                 local realHP = hum.Health
-                local percentHP = realHP / realMaxHP
                 
-                -- Tính fake health dựa trên % thật
-                local newFakeHealth = math.floor(_G.FAKE_STATS.MaxHealth * percentHP)
-                
-                -- Chỉ update nếu thay đổi đáng kể (tránh flicker)
-                if math.abs(_G.FAKE_STATS.Health - newFakeHealth) >= 1 then
-                    _G.FAKE_STATS.Health = newFakeHealth
-                end
-            end
-            
-            -- Sync Stamina - Tìm trong CoreAssets hoặc Attributes
-            local realMaxStam = nil
-            local realStam = nil
-            
-            -- Ưu tiên: Tìm trong CoreAssets folder
-            local coreAssets = char:FindFirstChild("CoreAssets")
-            if coreAssets then
-                local maxStamObj = coreAssets:FindFirstChild("MaxStamina")
-                local stamObj = coreAssets:FindFirstChild("Stamina")
-                
-                if maxStamObj and (maxStamObj:IsA("NumberValue") or maxStamObj:IsA("IntValue")) then
-                    realMaxStam = maxStamObj.Value
-                end
-                if stamObj and (stamObj:IsA("NumberValue") or stamObj:IsA("IntValue")) then
-                    realStam = stamObj.Value
-                end
-            end
-            
-            -- Fallback 1: Character Attributes
-            if not realMaxStam or not realStam then
-                realMaxStam = char:GetAttribute("MaxStamina")
-                realStam = char:GetAttribute("Stamina")
-            end
-            
-            -- Fallback 2: Search toàn bộ descendants
-            if not realMaxStam or not realStam then
-                for _, obj in ipairs(char:GetDescendants()) do
-                    if obj:IsA("NumberValue") or obj:IsA("IntValue") then
-                        if obj.Name == "MaxStamina" and not realMaxStam then
-                            realMaxStam = obj.Value
-                        elseif obj.Name == "Stamina" and not realStam then
-                            realStam = obj.Value
-                        end
-                    end
-                end
-            end
-            
-            -- Calculate fake stamina based on percentage
-            if realMaxStam and realStam and realMaxStam > 0 then
-                local percentStam = realStam / realMaxStam
-                local newFakeStam = math.floor(_G.FAKE_STATS.MaxStamina * percentStam)
-                
-                if math.abs(_G.FAKE_STATS.Stamina - newFakeStam) >= 1 then
-                    _G.FAKE_STATS.Stamina = newFakeStam
-                end
-            end
-        end)
-    end
-end)
-
--- CRITICAL: Force update humanoid display health cho người khác nhìn thấy
-task.spawn(function()
-    while task.wait(0.1) do
-        if not _G.FAKE_STATS.AutoFake then continue end
-        
-        pcall(function()
-            local char = player.Character
-            if not char then return end
-            
-            local hum = char:FindFirstChildOfClass("Humanoid")
-            if hum then
-                -- Force DisplayDistanceType để đảm bảo healthbar được hiển thị
-                hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer
-                hum.HealthDisplayType = Enum.HumanoidHealthDisplayType.DisplayWhenDamaged
-                
-                -- Tìm và modify HealthDisplayDistance nếu cần
-                -- (để đảm bảo healthbar được render cho người khác)
-            end
-        end)
-    end
-end)
-
--- Visual spoof for health and stamina displays - CRITICAL FOR STEALTH
-task.spawn(function()
-    while task.wait(0.05) do -- Update cực nhanh để tránh bị phát hiện
-        if not _G.FAKE_STATS.AutoFake then continue end
-        
-        pcall(function()
-            local char = player.Character
-            if not char then return end
-            
-            -- ========================================
-            -- CRITICAL: Fake healthbar mà người khác nhìn thấy!
-            -- ========================================
-            local head = char:FindFirstChild("Head")
-            if head then
-                -- Tìm BillboardGui chứa healthbar
-                for _, billboard in ipairs(head:GetChildren()) do
-                    if billboard:IsA("BillboardGui") then
-                        -- Tìm Frame chứa health bar
-                        for _, frame in ipairs(billboard:GetDescendants()) do
-                            if frame:IsA("Frame") then
-                                -- Check nếu đây là health bar (thường có màu đỏ/xanh)
-                                local isHealthBar = false
-                                
-                                -- Method 1: Check tên
-                                if frame.Name:lower():find("health") or 
-                                   frame.Name:lower():find("hp") or
-                                   frame.Parent.Name:lower():find("health") then
-                                    isHealthBar = true
-                                end
-                                
-                                -- Method 2: Check màu (health bar thường màu đỏ)
-                                if frame.BackgroundColor3 == Color3.fromRGB(255, 0, 0) or
-                                   frame.BackgroundColor3 == Color3.fromRGB(170, 0, 0) or
-                                   (frame.BackgroundColor3.R > 0.6 and frame.BackgroundColor3.G < 0.3 and frame.BackgroundColor3.B < 0.3) then
-                                    isHealthBar = true
-                                end
-                                
-                                -- Update health bar size dựa trên fake %
-                                if isHealthBar then
-                                    local fakePercent = _G.FAKE_STATS.Health / _G.FAKE_STATS.MaxHealth
-                                    
-                                    -- Kiểm tra xem bar dùng Scale hay Offset
-                                    if frame.Size.X.Scale > 0 then
-                                        -- Dùng Scale (0-1)
-                                        frame.Size = UDim2.new(fakePercent, frame.Size.X.Offset, frame.Size.Y.Scale, frame.Size.Y.Offset)
-                                    else
-                                        -- Dùng Offset (pixel) - cần tìm parent width
-                                        local parent = frame.Parent
-                                        if parent and parent:IsA("Frame") then
-                                            local maxWidth = parent.AbsoluteSize.X
-                                            frame.Size = UDim2.new(0, maxWidth * fakePercent, frame.Size.Y.Scale, frame.Size.Y.Offset)
-                                        end
-                                    end
-                                end
-                            end
-                            
-                            -- Fake text label hiển thị số HP
-                            if frame:IsA("TextLabel") or frame:IsA("TextBox") then
-                                local text = frame.Text
-                                -- Pattern: "123 / 456" hoặc "123/456"
-                                if string.match(text, "%d+%s*/%s*%d+") then
-                                    frame.Text = _G.FAKE_STATS.Health .. " / " .. _G.FAKE_STATS.MaxHealth
-                                end
-                            end
-                        end
-                    end
-                end
-                
-                -- Fake text trên head (nếu có)
-                for _, obj in ipairs(head:GetDescendants()) do
-                    if (obj:IsA("TextLabel") or obj:IsA("TextBox")) and obj.Text then
-                        if string.match(obj.Text, "%d+%s*/%s*%d+") then
-                            obj.Text = _G.FAKE_STATS.Health .. " / " .. _G.FAKE_STATS.MaxHealth
-                        end
-                    end
-                end
-            end
-            
-            -- ========================================
-            -- Fake stamina bar trong PlayerGui
-            -- ========================================
-            local gui = player:FindFirstChild("PlayerGui")
-            if gui then
-                for _, obj in ipairs(gui:GetDescendants()) do
-                    -- Fake stamina text
-                    if (obj:IsA("TextLabel") or obj:IsA("TextBox")) and obj.Text then
-                        local name = obj.Name:lower()
-                        local parentName = obj.Parent and obj.Parent.Name:lower() or ""
-                        
-                        if (name:find("stamina") or parentName:find("stamina")) and 
-                           string.match(obj.Text, "%d+%s*/%s*%d+") then
-                            obj.Text = _G.FAKE_STATS.Stamina .. " / " .. _G.FAKE_STATS.MaxStamina
-                        end
-                    end
+                -- CHỈ update nếu HP thay đổi
+                if math.abs(realHP - _G.LAST_REAL_HP) >= 1 then
+                    _G.LAST_REAL_HP = realHP
                     
-                    -- Fake stamina bar
-                    if obj:IsA("Frame") then
-                        local name = obj.Name:lower()
-                        local parentName = obj.Parent and obj.Parent.Name:lower() or ""
+                    local percentHP = realHP / hum.MaxHealth
+                    _G.FAKE_STATS.Health = math.floor(_G.FAKE_STATS.MaxHealth * percentHP)
+                end
+            end
+            
+            -- Sync Stamina (tối ưu - cache CoreAssets)
+            if not char:FindFirstChild("CoreAssets") then return end
+            
+            local stamObj = char.CoreAssets:FindFirstChild("Stamina")
+            local maxStamObj = char.CoreAssets:FindFirstChild("MaxStamina")
+            
+            if stamObj and maxStamObj and maxStamObj.Value > 0 then
+                local realStam = stamObj.Value
+                
+                -- CHỈ update nếu Stamina thay đổi
+                if math.abs(realStam - _G.LAST_REAL_STAM) >= 1 then
+                    _G.LAST_REAL_STAM = realStam
+                    
+                    local percentStam = realStam / maxStamObj.Value
+                    _G.FAKE_STATS.Stamina = math.floor(_G.FAKE_STATS.MaxStamina * percentStam)
+                end
+            end
+        end)
+    end
+end)
+
+-- CUSTOM FAKE HEALTHBAR - Giải pháp cho MaxHealth > 320
+_G.CUSTOM_HEALTHBAR = nil
+
+local function createCustomHealthbar()
+    pcall(function()
+        local char = player.Character
+        if not char then return end
+        
+        local head = char:FindFirstChild("Head")
+        if not head then return end
+        
+        -- Xóa healthbar cũ nếu có
+        if _G.CUSTOM_HEALTHBAR then
+            pcall(function() _G.CUSTOM_HEALTHBAR:Destroy() end)
+        end
+        
+        -- Tạo BillboardGui fake
+        local billboard = Instance.new("BillboardGui")
+        billboard.Name = "FakeHealthDisplay"
+        billboard.Parent = head
+        billboard.Size = UDim2.new(4, 0, 0.5, 0)
+        billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+        billboard.AlwaysOnTop = true
+        billboard.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        
+        -- Background frame
+        local bgFrame = Instance.new("Frame")
+        bgFrame.Name = "Background"
+        bgFrame.Parent = billboard
+        bgFrame.Size = UDim2.new(1, 0, 1, 0)
+        bgFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        bgFrame.BorderSizePixel = 0
+        
+        local bgCorner = Instance.new("UICorner")
+        bgCorner.CornerRadius = UDim.new(0, 4)
+        bgCorner.Parent = bgFrame
+        
+        -- Health bar (fake)
+        local healthBar = Instance.new("Frame")
+        healthBar.Name = "HealthBar"
+        healthBar.Parent = bgFrame
+        healthBar.Size = UDim2.new(1, 0, 1, 0) -- Sẽ được update theo %
+        healthBar.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Xanh lá
+        healthBar.BorderSizePixel = 0
+        
+        local healthCorner = Instance.new("UICorner")
+        healthCorner.CornerRadius = UDim.new(0, 4)
+        healthCorner.Parent = healthBar
+        
+        -- Text label (fake)
+        local textLabel = Instance.new("TextLabel")
+        textLabel.Name = "HealthText"
+        textLabel.Parent = bgFrame
+        textLabel.Size = UDim2.new(1, 0, 1, 0)
+        textLabel.BackgroundTransparency = 1
+        textLabel.Text = _G.FAKE_STATS.Health .. " / " .. _G.FAKE_STATS.MaxHealth
+        textLabel.TextColor3 = Color3.new(1, 1, 1)
+        textLabel.TextScaled = true
+        textLabel.Font = Enum.Font.GothamBold
+        textLabel.ZIndex = 2
+        
+        _G.CUSTOM_HEALTHBAR = billboard
+        print("✅ Custom healthbar created")
+    end)
+end
+
+-- Update custom healthbar
+task.spawn(function()
+    while task.wait(0.1) do -- Update mỗi 0.1s (10fps) - đủ mượt mà không lag
+        if not _G.FAKE_STATS.AutoFake then continue end
+        
+        pcall(function()
+            local char = player.Character
+            if not char then return end
+            
+            -- Tạo healthbar nếu chưa có hoặc bị mất
+            if not _G.CUSTOM_HEALTHBAR or not _G.CUSTOM_HEALTHBAR.Parent then
+                createCustomHealthbar()
+            end
+            
+            -- Update healthbar
+            if _G.CUSTOM_HEALTHBAR then
+                local healthBar = _G.CUSTOM_HEALTHBAR:FindFirstChild("Background", true)
+                if healthBar then
+                    healthBar = healthBar:FindFirstChild("HealthBar")
+                    if healthBar then
+                        -- Tính % fake
+                        local fakePercent = _G.FAKE_STATS.Health / _G.FAKE_STATS.MaxHealth
                         
-                        if name:find("stamina") or parentName:find("stamina") then
-                            local fakePercent = _G.FAKE_STATS.Stamina / _G.FAKE_STATS.MaxStamina
-                            
-                            if obj.Size.X.Scale > 0 then
-                                obj.Size = UDim2.new(fakePercent, obj.Size.X.Offset, obj.Size.Y.Scale, obj.Size.Y.Offset)
-                            end
+                        -- Update size
+                        healthBar.Size = UDim2.new(fakePercent, 0, 1, 0)
+                        
+                        -- Update màu theo %
+                        if fakePercent > 0.6 then
+                            healthBar.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Xanh
+                        elseif fakePercent > 0.3 then
+                            healthBar.BackgroundColor3 = Color3.fromRGB(255, 255, 0) -- Vàng
+                        else
+                            healthBar.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Đỏ
                         end
+                    end
+                end
+                
+                -- Update text
+                local textLabel = _G.CUSTOM_HEALTHBAR:FindFirstChild("Background", true)
+                if textLabel then
+                    textLabel = textLabel:FindFirstChild("HealthText")
+                    if textLabel then
+                        textLabel.Text = _G.FAKE_STATS.Health .. " / " .. _G.FAKE_STATS.MaxHealth
                     end
                 end
             end
         end)
     end
+end)
+
+-- Tự động tạo lại healthbar khi respawn
+player.CharacterAdded:Connect(function(char)
+    task.wait(2)
+    createCustomHealthbar()
 end)
 
 ---------------- APPLY CORE ----------------
--- Debug monitor for real stats
+-- Debug monitor OPTIMIZED
 task.spawn(function()
-    while task.wait(3) do
+    while task.wait(5) do -- Tăng từ 2s lên 5s để giảm spam console
         pcall(function()
             local char = player.Character
             if not char then return end
             
             local hum = char:FindFirstChildOfClass("Humanoid")
-            local realMaxStam = nil
-            local realStam = nil
-            
-            -- Check CoreAssets first
             local coreAssets = char:FindFirstChild("CoreAssets")
-            if coreAssets then
-                local maxStamObj = coreAssets:FindFirstChild("MaxStamina")
-                local stamObj = coreAssets:FindFirstChild("Stamina")
-                if maxStamObj then realMaxStam = maxStamObj.Value end
-                if stamObj then realStam = stamObj.Value end
-            end
+            local realStam, realMaxStam = 0, 0
             
-            -- Fallback
-            if not realMaxStam or not realStam then
-                realMaxStam = char:GetAttribute("MaxStamina")
-                realStam = char:GetAttribute("Stamina")
+            if coreAssets then
+                local stamObj = coreAssets:FindFirstChild("Stamina")
+                local maxStamObj = coreAssets:FindFirstChild("MaxStamina")
+                if stamObj then realStam = stamObj.Value end
+                if maxStamObj then realMaxStam = maxStamObj.Value end
             end
             
             print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-            print("📊 REAL Stats:")
-            print("   HP:", hum and math.floor(hum.Health) or "?", "/", hum and math.floor(hum.MaxHealth) or "?")
-            print("   Stamina:", realStam and math.floor(realStam) or "?", "/", realMaxStam and math.floor(realMaxStam) or "?")
-            print("🎭 FAKE Stats (người khác thấy):")
-            print("   HP:", _G.FAKE_STATS.Health, "/", _G.FAKE_STATS.MaxHealth)
-            print("   Stamina:", _G.FAKE_STATS.Stamina, "/", _G.FAKE_STATS.MaxStamina)
+            print("📊 REAL: HP", hum and math.floor(hum.Health) or "?", "/", hum and math.floor(hum.MaxHealth) or "?",
+                  "| Stam", math.floor(realStam), "/", math.floor(realMaxStam))
+            print("🎭 FAKE: HP", _G.FAKE_STATS.Health, "/", _G.FAKE_STATS.MaxHealth,
+                  "| Stam", _G.FAKE_STATS.Stamina, "/", _G.FAKE_STATS.MaxStamina)
             
-            -- Tính % để verify
             if hum and hum.MaxHealth > 0 then
-                local realPercent = math.floor((hum.Health / hum.MaxHealth) * 100)
-                local fakePercent = math.floor((_G.FAKE_STATS.Health / _G.FAKE_STATS.MaxHealth) * 100)
-                print("🔍 HP %: Real=" .. realPercent .. "% | Fake=" .. fakePercent .. "%", 
-                      (math.abs(realPercent - fakePercent) < 2) and "✅" or "⚠️ NOT SYNCED!")
-            end
-            
-            if realMaxStam and realStam and realMaxStam > 0 then
-                local realPercent = math.floor((realStam / realMaxStam) * 100)
-                local fakePercent = math.floor((_G.FAKE_STATS.Stamina / _G.FAKE_STATS.MaxStamina) * 100)
-                print("🔍 Stamina %: Real=" .. realPercent .. "% | Fake=" .. fakePercent .. "%",
-                      (math.abs(realPercent - fakePercent) < 2) and "✅" or "⚠️ NOT SYNCED!")
+                local realP = math.floor((hum.Health / hum.MaxHealth) * 100)
+                local fakeP = math.floor((_G.FAKE_STATS.Health / _G.FAKE_STATS.MaxHealth) * 100)
+                print("HP%: Real=" .. realP .. "% | Fake=" .. fakeP .. "%", 
+                      math.abs(realP - fakeP) < 3 and "✅" or "⚠️")
             end
             print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         end)
@@ -747,28 +631,17 @@ end)
 -- Stealth section
 createHeader("🛡️ ANTI-DETECTION", Color3.fromRGB(85, 35, 55))
 
--- Create stealth button
-local stealthBtn = Instance.new("TextButton")
-stealthBtn.Parent = main
-stealthBtn.Text = "Stealth: " .. (DATA.Stealth.Enabled and "ON" or "OFF")
-stealthBtn.Size = UDim2.new(1, -20, 0, 35)
-stealthBtn.BackgroundColor3 = DATA.Stealth.Enabled and Color3.fromRGB(45, 70, 30) or Color3.fromRGB(70, 30, 30)
-stealthBtn.TextColor3 = Color3.new(1, 1, 1)
-stealthBtn.Font = Enum.Font.Gotham
-stealthBtn.TextSize = 14
-stealthBtn.LayoutOrder = currentOrder
-currentOrder = currentOrder + 1
-
-local stealthCorner = Instance.new("UICorner")
-stealthCorner.Parent = stealthBtn
-
-stealthBtn.MouseButton1Click:Connect(function()
-    DATA.Stealth.Enabled = not DATA.Stealth.Enabled
-    _G.FAKE_STATS.AutoFake = DATA.Stealth.Enabled
-    stealthBtn.Text = "Stealth: " .. (DATA.Stealth.Enabled and "ON" or "OFF")
-    stealthBtn.BackgroundColor3 = DATA.Stealth.Enabled and Color3.fromRGB(45, 70, 30) or Color3.fromRGB(70, 30, 30)
-    print("🛡️ Stealth:", DATA.Stealth.Enabled and "ON" or "OFF")
-end)
+local stealthBtn = createButton(
+    "Stealth: " .. (DATA.Stealth.Enabled and "ON" or "OFF"),
+    DATA.Stealth.Enabled and Color3.fromRGB(45, 70, 30) or Color3.fromRGB(70, 30, 30),
+    function()
+        DATA.Stealth.Enabled = not DATA.Stealth.Enabled
+        _G.FAKE_STATS.AutoFake = DATA.Stealth.Enabled
+        stealthBtn.Text = "Stealth: " .. (DATA.Stealth.Enabled and "ON" or "OFF")
+        stealthBtn.BackgroundColor3 = DATA.Stealth.Enabled and Color3.fromRGB(45, 70, 30) or Color3.fromRGB(70, 30, 30)
+        print("🛡️ Stealth:", DATA.Stealth.Enabled and "ON" or "OFF")
+    end
+)
 
 createInput("Fake MaxHP", DATA.Stealth.FakeMaxHealth, function(n)
     DATA.Stealth.FakeMaxHealth = n
@@ -798,27 +671,15 @@ end
 -- Statistics section
 createHeader("📈 STATISTICS", Color3.fromRGB(55, 45, 75))
 
--- Create statistics button
-local statsBtn = Instance.new("TextButton")
-statsBtn.Parent = main
-statsBtn.Text = "Statistics: " .. (DATA.StatisticsGui.Enabled and "ON" or "OFF")
-statsBtn.Size = UDim2.new(1, -20, 0, 35)
-statsBtn.BackgroundColor3 = DATA.StatisticsGui.Enabled and Color3.fromRGB(45, 70, 30) or Color3.fromRGB(70, 30, 30)
-statsBtn.TextColor3 = Color3.new(1, 1, 1)
-statsBtn.Font = Enum.Font.Gotham
-statsBtn.TextSize = 14
-statsBtn.LayoutOrder = currentOrder
-currentOrder = currentOrder + 1
-
-local statsCorner = Instance.new("UICorner")
-statsCorner.Parent = statsBtn
-
-statsBtn.MouseButton1Click:Connect(function()
-    DATA.StatisticsGui.Enabled = not DATA.StatisticsGui.Enabled
-    statsBtn.Text = "Statistics: " .. (DATA.StatisticsGui.Enabled and "ON" or "OFF")
-    statsBtn.BackgroundColor3 = DATA.StatisticsGui.Enabled and Color3.fromRGB(45, 70, 30) or Color3.fromRGB(70, 30, 30)
-    print("📊 Stats:", DATA.StatisticsGui.Enabled and "ON" or "OFF")
-end)
+local statsBtn = createButton(
+    "Statistics: " .. (DATA.StatisticsGui.Enabled and "ON" or "OFF"),
+    Color3.fromRGB(45, 30, 70),
+    function()
+        DATA.StatisticsGui.Enabled = not DATA.StatisticsGui.Enabled
+        statsBtn.Text = "Statistics: " .. (DATA.StatisticsGui.Enabled and "ON" or "OFF")
+        print("📊 Stats:", DATA.StatisticsGui.Enabled and "ON" or "OFF")
+    end
+)
 
 createInput("TotalDamageGiven", DATA.StatisticsGui.TotalDamageGiven, function(n)
     DATA.StatisticsGui.TotalDamageGiven = n
