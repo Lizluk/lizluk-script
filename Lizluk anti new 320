@@ -41,8 +41,8 @@ end
 ---------------- CONFIG ----------------
 _G.LIZLUK_CONFIG = {
     Core = {
-        MaxHealth = 320,
-        Health = 320,
+        MaxHealth = 740,
+        Health = 740,
         MaxStamina = 10000,
         Stamina = 10000,
         BaseDamage = 1,
