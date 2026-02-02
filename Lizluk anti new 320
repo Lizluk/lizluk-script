@@ -4,28 +4,39 @@
 repeat task.wait() until game:IsLoaded()
 task.wait(3)
 
-print("🚀 LIZLUK Loading...")
+-- SILENT MODE - Console hoàn toàn sạch
+_G.LIZLUK_SILENT = true -- SET = false để debug
 
--- SUPPRESS CONSOLE WARNINGS từ game
+-- Suppress warnings
 local oldWarn = warn
-local oldError = error
-_G.SUPPRESS_WARNINGS = true
-
 warn = function(...)
-    local msg = tostring(...)
-    -- Chặn warnings liên quan đến clamp, health, stamina
-    if _G.SUPPRESS_WARNINGS and (
-        msg:find("clamp") or 
-        msg:find("PlayerGuiHandler") or
-        msg:find("invalid argument") or
-        msg:find("Max must be greater")
-    ) then
-        return -- Bỏ qua warning
+    if _G.LIZLUK_SILENT then
+        local args = {...}
+        local msg = ""
+        for i, v in ipairs(args) do
+            msg = msg .. tostring(v) .. " "
+        end
+        
+        -- Chặn tất cả warnings liên quan
+        if msg:find("clamp") or 
+           msg:find("PlayerGuiHandler") or
+           msg:find("invalid argument") or
+           msg:find("Max must be") or
+           msg:find("greater than") then
+            return
+        end
     end
     return oldWarn(...)
 end
 
-print("✅ Warning suppression active")
+-- Override print để silent mode
+local oldPrint = print
+print = function(...)
+    if not _G.LIZLUK_SILENT then
+        return oldPrint(...)
+    end
+    -- Silent mode: không in gì cả
+end
 
 ---------------- SERVICES ----------------
 local Players = game:GetService("Players")
@@ -48,9 +59,6 @@ if player.UserId ~= ALLOWED_USERID then
     player:Kick("⛔ User not authorized | UserID: " .. player.UserId)
     return 
 end
-
-print("✅ Token valid")
-print("✅ User authorized:", player.Name)
 
 ---------------- SOLARA-SAFE CLAMP ----------------
 local function safeClamp(val, min, max)
@@ -108,11 +116,6 @@ _G.FAKE_STATS = {
 local hasMT = pcall(function() return getrawmetatable(game) end)
 local hasNC = pcall(function() return newcclosure end)
 local hasCC = pcall(function() return checkcaller end)
-
-print("🔍 Solara features:")
-print("- Metatable:", hasMT and "✅" or "❌")
-print("- newcclosure:", hasNC and "✅" or "❌")
-print("- checkcaller:", hasCC and "✅" or "❌")
 
 -- Lightweight stealth with extended stamina support
 if hasMT and hasNC and hasCC then
@@ -204,8 +207,6 @@ if hasMT and hasNC and hasCC then
         elseif make_readonly then
             make_readonly(mt)
         end
-        
-        print("✅ Anti-detection active (Health + Stamina + Replication)")
     end)
     
     if not success then
@@ -485,8 +486,6 @@ end)
 local function applyCore(char)
     if not char then return end
     
-    print("🔧 Applying core...")
-    
     task.spawn(function()
         -- Validate values trước khi apply
         local validatedCore = {}
@@ -523,7 +522,6 @@ local function applyCore(char)
             hum.MaxHealth = maxHP
             task.wait(0.1)
             hum.Health = hp
-            print("✅ Core applied - HP:", hum.Health, "/", hum.MaxHealth)
         end
     end)
 end
@@ -570,8 +568,6 @@ local function applyAttributes()
                     end)
                 end
             end
-            
-            print("✅ Applied", count, "attributes")
         end)
         
         if not success then
@@ -619,7 +615,7 @@ task.spawn(function()
 end)
 
 ---------------- GUI ----------------
-print("🎨 Creating GUI...")
+
 
 local gui = Instance.new("ScreenGui")
 gui.Name = "LizlukGUI"
@@ -635,7 +631,7 @@ if not success then
     gui.Parent = player:WaitForChild("PlayerGui")
     warn("⚠️ Using PlayerGui")
 else
-    print("✅ GUI in CoreGui")
+    
 end
 
 ---------------- MAIN FRAME (FIXED SCROLLING) ----------------
@@ -717,7 +713,7 @@ local function createInput(labelText, initialValue, callback)
             if num then
                 callback(num)
                 box.Text = labelText .. ": " .. tostring(num)
-                print("✏️", labelText, "→", num)
+                
             else
                 box.Text = labelText .. ": " .. tostring(initialValue)
             end
@@ -811,7 +807,7 @@ stealthBtn.MouseButton1Click:Connect(function()
     _G.FAKE_STATS.AutoFake = DATA.Stealth.Enabled
     stealthBtn.Text = "Stealth: " .. (DATA.Stealth.Enabled and "ON" or "OFF")
     stealthBtn.BackgroundColor3 = DATA.Stealth.Enabled and Color3.fromRGB(45, 70, 30) or Color3.fromRGB(70, 30, 30)
-    print("🛡️ Stealth:", DATA.Stealth.Enabled and "ON" or "OFF")
+    
 end)
 
 createInput("Fake MaxHP", DATA.Stealth.FakeMaxHealth, function(n)
@@ -826,7 +822,7 @@ end)
 
 -- Apply button
 createButton("Apply Attributes Now", Color3.fromRGB(55, 35, 85), function()
-    print("🔄 Manual apply...")
+    
     applyAttributes()
 end)
 
@@ -861,7 +857,7 @@ statsBtn.MouseButton1Click:Connect(function()
     DATA.StatisticsGui.Enabled = not DATA.StatisticsGui.Enabled
     statsBtn.Text = "Statistics: " .. (DATA.StatisticsGui.Enabled and "ON" or "OFF")
     statsBtn.BackgroundColor3 = DATA.StatisticsGui.Enabled and Color3.fromRGB(45, 70, 30) or Color3.fromRGB(70, 30, 30)
-    print("📊 Stats:", DATA.StatisticsGui.Enabled and "ON" or "OFF")
+    
 end)
 
 createInput("TotalDamageGiven", DATA.StatisticsGui.TotalDamageGiven, function(n)
@@ -877,7 +873,6 @@ UIS.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if input.KeyCode == Enum.KeyCode.Insert then
         gui.Enabled = not gui.Enabled
-        print("👁️ GUI:", gui.Enabled and "VISIBLE" or "HIDDEN")
     end
 end)
 
@@ -931,8 +926,4 @@ RunService.RenderStepped:Connect(function(dt)
     end
 end)
 
-print("✨ LIZLUK LOADED ✨")
-print("🔐 Token: ✅")
-print("👤 User:", player.Name, "(ID:", player.UserId, ")")
-print("📌 Press INSERT to toggle")
-print("🛡️ Stealth:", DATA.Stealth.Enabled and "ACTIVE" or "OFF")
+-- Script loaded silently
