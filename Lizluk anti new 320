@@ -46,7 +46,7 @@ local player = Players.LocalPlayer
 
 ---------------- 🔐 TOKEN + USER AUTHENTICATION ----------------
 local REQUIRED_TOKEN = "lizluk-ghost-2026"
-local ALLOWED_USERID = 8076792445 -- <<< ĐỔI USERID CỦA BẠN
+local ALLOWED_USERID = 10444884250 -- <<< ĐỔI USERID CỦA BẠN
 
 -- Check token
 if not _G.LIZLUK_TOKEN or _G.LIZLUK_TOKEN ~= REQUIRED_TOKEN then
