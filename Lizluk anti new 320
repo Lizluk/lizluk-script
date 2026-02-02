@@ -6,6 +6,27 @@ task.wait(3)
 
 print("🚀 LIZLUK Loading...")
 
+-- SUPPRESS CONSOLE WARNINGS từ game
+local oldWarn = warn
+local oldError = error
+_G.SUPPRESS_WARNINGS = true
+
+warn = function(...)
+    local msg = tostring(...)
+    -- Chặn warnings liên quan đến clamp, health, stamina
+    if _G.SUPPRESS_WARNINGS and (
+        msg:find("clamp") or 
+        msg:find("PlayerGuiHandler") or
+        msg:find("invalid argument") or
+        msg:find("Max must be greater")
+    ) then
+        return -- Bỏ qua warning
+    end
+    return oldWarn(...)
+end
+
+print("✅ Warning suppression active")
+
 ---------------- SERVICES ----------------
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -33,6 +54,10 @@ print("✅ User authorized:", player.Name)
 
 ---------------- SOLARA-SAFE CLAMP ----------------
 local function safeClamp(val, min, max)
+    -- Validate inputs để tránh game warning
+    if not val or not min or not max then return min end
+    if min > max then min, max = max, min end -- Swap nếu sai thứ tự
+    
     if val < min then return min end
     if val > max then return max end
     return val
@@ -41,20 +66,20 @@ end
 ---------------- CONFIG ----------------
 _G.LIZLUK_CONFIG = {
     Core = {
-        MaxHealth = 740,
-        Health = 740,
+        MaxHealth = 5000,
+        Health = 5000,
         MaxStamina = 10000,
         Stamina = 10000,
         BaseDamage = 1,
         AttackSpeed = 1.5
     },
     AttributesGui = {
-        Dexterity = 30,
-        Regeneration = 50,
+        Dexterity = 20,
+        Regeneration = 20,
         Stamina = 10000,
         Strength = 500,
         Stride = 20,
-        StrikeGuard = 100,
+        StrikeGuard = 20,
         Vitality = 5000
     },
     StatisticsGui = {
@@ -463,24 +488,41 @@ local function applyCore(char)
     print("🔧 Applying core...")
     
     task.spawn(function()
+        -- Validate values trước khi apply
+        local validatedCore = {}
         for k,v in pairs(DATA.Core) do
+            if type(v) == "number" and v > 0 then
+                validatedCore[k] = v
+            end
+        end
+        
+        for k,v in pairs(validatedCore) do
             pcall(function() 
                 char:SetAttribute(k, v)
             end)
         end
         
         for _, d in ipairs(char:GetDescendants()) do
-            if (d:IsA("NumberValue") or d:IsA("IntValue")) and DATA.Core[d.Name] then
+            if (d:IsA("NumberValue") or d:IsA("IntValue")) and validatedCore[d.Name] then
                 pcall(function()
-                    d.Value = DATA.Core[d.Name]
+                    d.Value = validatedCore[d.Name]
                 end)
             end
         end
         
         local hum = char:FindFirstChildOfClass("Humanoid")
         if hum then
-            hum.MaxHealth = DATA.Core.MaxHealth
-            hum.Health = safeClamp(DATA.Core.Health, 0, DATA.Core.MaxHealth)
+            local maxHP = validatedCore.MaxHealth or 100
+            local hp = validatedCore.Health or maxHP
+            
+            -- Đảm bảo Health <= MaxHealth
+            if hp > maxHP then hp = maxHP end
+            if hp < 1 then hp = 1 end
+            if maxHP < 1 then maxHP = 100 end
+            
+            hum.MaxHealth = maxHP
+            task.wait(0.1)
+            hum.Health = hp
             print("✅ Core applied - HP:", hum.Health, "/", hum.MaxHealth)
         end
     end)
