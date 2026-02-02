@@ -74,20 +74,20 @@ end
 ---------------- CONFIG ----------------
 _G.LIZLUK_CONFIG = {
     Core = {
-        MaxHealth = 5000,
-        Health = 5000,
+        MaxHealth = 740,
+        Health = 740,
         MaxStamina = 10000,
         Stamina = 10000,
         BaseDamage = 1,
         AttackSpeed = 1.5
     },
     AttributesGui = {
-        Dexterity = 20,
+        Dexterity = 30,
         Regeneration = 20,
         Stamina = 10000,
         Strength = 500,
         Stride = 20,
-        StrikeGuard = 20,
+        StrikeGuard = 100,
         Vitality = 5000
     },
     StatisticsGui = {
