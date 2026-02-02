@@ -50,11 +50,11 @@ _G.LIZLUK_CONFIG = {
     },
     AttributesGui = {
         Dexterity = 30,
-        Regeneration = 20,
+        Regeneration = 50,
         Stamina = 10000,
         Strength = 500,
         Stride = 20,
-        StrikeGuard = 400,
+        StrikeGuard = 100,
         Vitality = 5000
     },
     StatisticsGui = {
