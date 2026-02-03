@@ -79,7 +79,7 @@ for _, name in ipairs(ores) do
 end
 
 ---------------- 🛠️ HÀM TÌM VÀ DỊCH CHUYỂN ----------------
-local function teleportToOre()
+local function teleportToOre(skipNearby)
     local char = player.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then return end
@@ -93,10 +93,18 @@ local function teleportToOre()
             local p = v:IsA("BasePart") and v or v:FindFirstChildOfClass("BasePart") or v:FindFirstChildWhichIsA("BasePart", true)
             if p then
                 local d = (root.Position - p.Position).Magnitude
-                -- Bỏ qua cục đang đứng quá gần (dưới 5m) để tìm cục tiếp theo
-                if d > 5 and d < minDist then
-                    minDist = d
-                    nearest = p
+                -- Nếu skipNearby = true thì bỏ qua cục gần (cho teleport thủ công)
+                -- Nếu skipNearby = false thì lấy cục gần nhất (cho auto farm)
+                if skipNearby then
+                    if d > 5 and d < minDist then
+                        minDist = d
+                        nearest = p
+                    end
+                else
+                    if d < minDist then
+                        minDist = d
+                        nearest = p
+                    end
                 end
             end
         end
@@ -107,7 +115,7 @@ local function teleportToOre()
         print("🚀 Đã bay tới: " .. _G.SelectedOre)
         return nearest
     else
-        print("❌ Không tìm thấy cục " .. _G.SelectedOre .. " nào ở gần!")
+        print("❌ Không tìm thấy cục " .. _G.SelectedOre .. " nào!")
         return nil
     end
 end
@@ -115,8 +123,8 @@ end
 ---------------- ⛏️ HÀM FARM TỰ ĐỘNG ----------------
 local currentTarget = nil
 local isFarming = false
-local VirtualUser = game:GetService("VirtualUser")
 local Camera = workspace.CurrentCamera
+local mouse = player:GetMouse()
 
 local function clickOre(orePart)
     if not orePart then return false end
@@ -135,26 +143,16 @@ local function clickOre(orePart)
         return true
     end
     
-    -- Mô phỏng click chuột vào vị trí quặng trên màn hình
-    local screenPos, onScreen = Camera:WorldToViewportPoint(orePart.Position)
-    if onScreen then
-        -- Di chuyển chuột đến vị trí quặng
-        VirtualUser:SetMousePosition(screenPos.X, screenPos.Y)
-        task.wait(0.05)
-        
-        -- Click chuột trái
-        VirtualUser:Button1Down(Vector2.new(screenPos.X, screenPos.Y))
-        task.wait(0.05)
-        VirtualUser:Button1Up(Vector2.new(screenPos.X, screenPos.Y))
-        
-        return true
-    end
+    -- Mô phỏng click chuột trực tiếp
+    pcall(function()
+        mouse1click()
+    end)
     
-    return false
+    return true
 end
 
 spawn(function()
-    while task.wait(0.15) do
+    while task.wait(0.1) do -- Click nhanh hơn (mỗi 0.1 giây)
         if _G.AutoFarming then
             local char = player.Character
             local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -163,7 +161,11 @@ spawn(function()
             if root and humanoid then
                 -- Nếu chưa có target hoặc target đã bị phá hủy
                 if not currentTarget or not currentTarget.Parent then
-                    currentTarget = teleportToOre()
+                    print("🔍 Đang tìm mục tiêu mới...")
+                    currentTarget = teleportToOre(false) -- false = lấy cục gần nhất
+                    if currentTarget then
+                        print("✅ Đã tìm thấy và teleport đến mục tiêu!")
+                    end
                     task.wait(0.5) -- Đợi teleport ổn định
                 end
                 
@@ -172,20 +174,20 @@ spawn(function()
                     -- Kiểm tra khoảng cách
                     local dist = (root.Position - currentTarget.Position).Magnitude
                     
-                    if dist > 15 then
-                        -- Nếu quá xa, teleport lại
+                    -- CHỈ teleport lại nếu QUÁ XA (hơn 20m)
+                    if dist > 20 then
+                        print("⚠️ Quá xa mục tiêu, đang điều chỉnh vị trí...")
                         root.CFrame = CFrame.new(currentTarget.Position + Vector3.new(0, 3, 2), currentTarget.Position)
                         task.wait(0.3)
                     end
                     
                     -- Xoay nhân vật nhìn vào quặng
-                    local lookCFrame = CFrame.new(root.Position, currentTarget.Position)
                     root.CFrame = CFrame.new(root.Position, Vector3.new(currentTarget.Position.X, root.Position.Y, currentTarget.Position.Z))
                     
-                    -- Xoay camera nhìn vào quặng
-                    Camera.CFrame = CFrame.new(Camera.CFrame.Position, currentTarget.Position)
+                    -- Đảm bảo chuột đang trỏ vào quặng
+                    mouse.Target = currentTarget
                     
-                    -- Click vào quặng để farm
+                    -- Click liên tục để farm
                     clickOre(currentTarget)
                 else
                     -- Không còn target, tìm target mới
@@ -218,7 +220,7 @@ end)
 UIS.InputBegan:Connect(function(input, g)
     if not g then
         if input.KeyCode == Enum.KeyCode.Z then
-            teleportToOre()
+            teleportToOre(true) -- true = bỏ qua cục quá gần
         elseif input.KeyCode == Enum.KeyCode.X then
             _G.AutoFarming = not _G.AutoFarming
             autoBtn.Text = _G.AutoFarming and "AUTO FARM: BẬT" or "AUTO FARM: TẮT"
