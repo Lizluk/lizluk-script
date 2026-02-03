@@ -1,0 +1,214 @@
+--// LIZLUK TELE-FARMER 🦋 (PHÍM Z ĐỂ BAY | PHÍM X ĐỂ AUTO FARM)
+repeat task.wait() until game:IsLoaded()
+
+local player = game:GetService("Players").LocalPlayer
+local UIS = game:GetService("UserInputService")
+local resources = workspace:WaitForChild("Resources")
+
+-- Loại quặng đang chọn để bay tới / farm
+_G.SelectedOre = "Iron Ore"
+_G.AutoFarming = false
+
+---------------- 🎨 TẠO GUI (CORE GUI - KÉO ĐƯỢC) ----------------
+local gui = Instance.new("ScreenGui")
+gui.Name = "Lizluk_TelePort"
+pcall(function() gui.Parent = game:GetService("CoreGui") end)
+
+local main = Instance.new("Frame", gui)
+main.Size = UDim2.fromOffset(200, 400)
+main.Position = UDim2.new(0.05, 0, 0.3, 0)
+main.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+main.Active = true
+Instance.new("UICorner", main)
+
+-- Kéo thả bảng
+local d, ds, sp; main.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then d=true ds=i.Position sp=main.Position end end)
+UIS.InputChanged:Connect(function(i) if d and i.UserInputType == Enum.UserInputType.MouseMovement then local dl=i.Position-ds main.Position=UDim2.new(sp.X.Scale, sp.X.Offset+dl.X, sp.Y.Scale, sp.Y.Offset+dl.Y) end end)
+UIS.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then d=false end end)
+
+local title = Instance.new("TextLabel", main)
+title.Size = UDim2.new(1, 0, 0, 40)
+title.Text = "CHỌN QUẶNG (Z/X)"
+title.TextColor3 = Color3.new(1, 1, 1)
+title.BackgroundColor3 = Color3.fromRGB(142, 68, 173)
+Instance.new("UICorner", title)
+
+-- Nút bật/tắt Auto Farm
+local autoBtn = Instance.new("TextButton", main)
+autoBtn.Size = UDim2.new(0.9, 0, 0, 40)
+autoBtn.Position = UDim2.new(0.05, 0, 0, 45)
+autoBtn.Text = "AUTO FARM: TẮT"
+autoBtn.TextColor3 = Color3.new(1, 1, 1)
+autoBtn.BackgroundColor3 = Color3.fromRGB(231, 76, 60)
+Instance.new("UICorner", autoBtn)
+
+autoBtn.MouseButton1Click:Connect(function()
+    _G.AutoFarming = not _G.AutoFarming
+    autoBtn.Text = _G.AutoFarming and "AUTO FARM: BẬT" or "AUTO FARM: TẮT"
+    autoBtn.BackgroundColor3 = _G.AutoFarming and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(231, 76, 60)
+    print(_G.AutoFarming and "✅ BẬT AUTO FARM" or "⛔ TẮT AUTO FARM")
+end)
+
+local scroll = Instance.new("ScrollingFrame", main)
+scroll.Size = UDim2.new(0.9, 0, 0.72, 0)
+scroll.Position = UDim2.new(0.05, 0, 0.25, 0)
+scroll.CanvasSize = UDim2.new(0, 0, 0, 350)
+scroll.BackgroundTransparency = 1
+Instance.new("UIListLayout", scroll).Padding = UDim.new(0, 5)
+
+local ores = {"Iron Ore", "Clay", "Copper", "Rock", "Coal", "Tin", "Tree", "Sand"}
+
+for _, name in ipairs(ores) do
+    local btn = Instance.new("TextButton", scroll)
+    btn.Size = UDim2.new(0.95, 0, 0, 35)
+    btn.Text = name
+    btn.BackgroundColor3 = (_G.SelectedOre == name) and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(45, 45, 50)
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    Instance.new("UICorner", btn)
+
+    btn.MouseButton1Click:Connect(function()
+        _G.SelectedOre = name
+        -- Cập nhật màu nút
+        for _, v in pairs(scroll:GetChildren()) do
+            if v:IsA("TextButton") then 
+                v.BackgroundColor3 = (v.Text == name) and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(45, 45, 50)
+            end
+        end
+        print("Đã chọn mục tiêu: " .. name)
+    end)
+end
+
+---------------- 🛠️ HÀM TÌM VÀ DỊCH CHUYỂN ----------------
+local function teleportToOre()
+    local char = player.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    local nearest = nil
+    local minDist = math.huge
+
+    for _, v in pairs(resources:GetChildren()) do
+        -- Kiểm tra tên model hoặc part bên trong
+        if v.Name:find(_G.SelectedOre) or v:FindFirstChild(_G.SelectedOre) then
+            local p = v:IsA("BasePart") and v or v:FindFirstChildOfClass("BasePart") or v:FindFirstChildWhichIsA("BasePart", true)
+            if p then
+                local d = (root.Position - p.Position).Magnitude
+                -- Bỏ qua cục đang đứng quá gần (dưới 5m) để tìm cục tiếp theo
+                if d > 5 and d < minDist then
+                    minDist = d
+                    nearest = p
+                end
+            end
+        end
+    end
+
+    if nearest then
+        root.CFrame = CFrame.new(nearest.Position + Vector3.new(0, 3, 2), nearest.Position)
+        print("🚀 Đã bay tới: " .. _G.SelectedOre)
+        return nearest
+    else
+        print("❌ Không tìm thấy cục " .. _G.SelectedOre .. " nào ở gần!")
+        return nil
+    end
+end
+
+---------------- ⛏️ HÀM FARM TỰ ĐỘNG ----------------
+local currentTarget = nil
+local isFarming = false
+
+local function clickOre(orePart)
+    if not orePart then return end
+    
+    -- Sử dụng ClickDetector hoặc ProximityPrompt nếu có
+    local clickDetector = orePart:FindFirstChildOfClass("ClickDetector") or orePart.Parent:FindFirstChildOfClass("ClickDetector")
+    if clickDetector then
+        fireclickdetector(clickDetector)
+        return true
+    end
+    
+    -- Nếu game dùng ProximityPrompt
+    local prompt = orePart:FindFirstChildOfClass("ProximityPrompt") or orePart.Parent:FindFirstChildOfClass("ProximityPrompt")
+    if prompt then
+        fireproximityprompt(prompt)
+        return true
+    end
+    
+    return false
+end
+
+spawn(function()
+    while task.wait(0.1) do
+        if _G.AutoFarming then
+            local char = player.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            
+            if root then
+                -- Nếu chưa có target hoặc target đã bị phá hủy
+                if not currentTarget or not currentTarget.Parent then
+                    currentTarget = teleportToOre()
+                    task.wait(0.5) -- Đợi teleport ổn định
+                end
+                
+                -- Nếu có target, tiếp tục farm
+                if currentTarget and currentTarget.Parent then
+                    -- Kiểm tra khoảng cách
+                    local dist = (root.Position - currentTarget.Position).Magnitude
+                    
+                    if dist > 15 then
+                        -- Nếu quá xa, teleport lại
+                        root.CFrame = CFrame.new(currentTarget.Position + Vector3.new(0, 3, 2), currentTarget.Position)
+                        task.wait(0.3)
+                    end
+                    
+                    -- Click vào quặng để farm
+                    clickOre(currentTarget)
+                else
+                    -- Không còn target, tìm target mới
+                    currentTarget = nil
+                end
+            end
+        else
+            currentTarget = nil
+            task.wait(1)
+        end
+    end
+end)
+
+-- Theo dõi khi quặng bị phá hủy
+workspace.ChildRemoved:Connect(function(child)
+    if currentTarget and (child == currentTarget or child == currentTarget.Parent) then
+        print("✅ Đã farm xong! Tìm mục tiêu mới...")
+        currentTarget = nil
+    end
+end)
+
+resources.ChildRemoved:Connect(function(child)
+    if currentTarget and (child == currentTarget or child == currentTarget.Parent) then
+        print("✅ Đã farm xong! Tìm mục tiêu mới...")
+        currentTarget = nil
+    end
+end)
+
+---------------- ⌨️ ĐIỀU KHIỂN PHÍM TẮT ----------------
+UIS.InputBegan:Connect(function(input, g)
+    if not g then
+        if input.KeyCode == Enum.KeyCode.Z then
+            teleportToOre()
+        elseif input.KeyCode == Enum.KeyCode.X then
+            _G.AutoFarming = not _G.AutoFarming
+            autoBtn.Text = _G.AutoFarming and "AUTO FARM: BẬT" or "AUTO FARM: TẮT"
+            autoBtn.BackgroundColor3 = _G.AutoFarming and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(231, 76, 60)
+            print(_G.AutoFarming and "✅ BẬT AUTO FARM" or "⛔ TẮT AUTO FARM")
+        elseif input.KeyCode == Enum.KeyCode.K then
+            main.Visible = not main.Visible
+        end
+    end
+end)
+
+print("╔═══════════════════════════════════════╗")
+print("║   LIZLUK AUTO FARM - ĐÃ TẢI XONG!   ║")
+print("╠═══════════════════════════════════════╣")
+print("║  Z = Teleport đến quặng gần nhất     ║")
+print("║  X = Bật/Tắt Auto Farm                ║")
+print("║  K = Ẩn/Hiện GUI                      ║")
+print("╚═══════════════════════════════════════╝")
