@@ -132,15 +132,27 @@ local UserInputService = game:GetService("UserInputService")
 local function clickOre(orePart)
     if not orePart then return false end
     
-    -- Tìm model cha của quặng
-    local oreModel = orePart.Parent
+    -- Lấy model cha của quặng
+    local oreModel = orePart:FindFirstAncestorOfClass("Model") or orePart.Parent
     
-    -- Phương pháp 1: Thử TẤT CẢ ClickDetector trong model
+    -- Tạo Raycast từ camera đến quặng để game biết đang nhắm vào
+    pcall(function()
+        local rayOrigin = Camera.CFrame.Position
+        local rayDirection = (orePart.Position - rayOrigin).Unit * 50
+        
+        local raycastParams = RaycastParams.new()
+        raycastParams.FilterType = Enum.RaycastFilterType.Whitelist
+        raycastParams.FilterDescendantsInstances = {oreModel}
+        
+        local rayResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+    end)
+    
+    -- Phương pháp 1: Fire TẤT CẢ ClickDetector
     local foundClick = false
     for _, child in pairs(oreModel:GetDescendants()) do
         if child:IsA("ClickDetector") then
             pcall(function()
-                fireclickdetector(child, 0) -- 0 = left click
+                fireclickdetector(child, 0)
             end)
             foundClick = true
         end
@@ -148,7 +160,7 @@ local function clickOre(orePart)
     
     if foundClick then return true end
     
-    -- Phương pháp 2: Thử ProximityPrompt
+    -- Phương pháp 2: ProximityPrompt
     for _, child in pairs(oreModel:GetDescendants()) do
         if child:IsA("ProximityPrompt") then
             pcall(function()
@@ -158,42 +170,48 @@ local function clickOre(orePart)
         end
     end
     
-    -- Phương pháp 3: Simulate MouseButton1Down/Up event
+    -- Phương pháp 3: Fire RemoteEvents với thông tin Stats
     pcall(function()
-        -- Tạo fake input event
-        local inputObject = {
-            UserInputType = Enum.UserInputType.MouseButton1,
-            UserInputState = Enum.UserInputState.Begin
-        }
+        local stats = player.Character:FindFirstChild("Stats")
+        local axeValue = stats and stats:FindFirstChild("Axe")
+        local currentTool = axeValue and axeValue.Value or "Fist"
         
-        -- Fire sự kiện click
-        for _, v in pairs(getconnections(UserInputService.InputBegan)) do
-            v:Fire(inputObject)
-        end
-        
-        task.wait(0.05)
-        
-        inputObject.UserInputState = Enum.UserInputState.End
-        for _, v in pairs(getconnections(UserInputService.InputEnded)) do
-            v:Fire(inputObject)
-        end
-    end)
-    
-    -- Phương pháp 4: Fire tất cả RemoteEvents có liên quan
-    pcall(function()
         for _, v in pairs(ReplicatedStorage:GetDescendants()) do
             if v:IsA("RemoteEvent") then
                 local name = v.Name:lower()
-                if name:find("mine") or name:find("hit") or name:find("swing") or name:find("damage") or name:find("harvest") or name:find("collect") then
+                if name:find("mine") or name:find("hit") or name:find("swing") or name:find("damage") or name:find("harvest") or name:find("collect") or name:find("tool") or name:find("axe") then
+                    -- Thử nhiều cách fire khác nhau
                     v:FireServer(orePart)
                     v:FireServer(oreModel)
-                    v:FireServer()
+                    v:FireServer(currentTool, orePart)
+                    v:FireServer(orePart, currentTool)
+                    v:FireServer({Target = orePart, Tool = currentTool})
                 end
             end
         end
     end)
     
-    -- Phương pháp 5: VIM click (backup)
+    -- Phương pháp 4: Fake InputBegan event với Target
+    pcall(function()
+        local fakeInput = {
+            UserInputType = Enum.UserInputType.MouseButton1,
+            UserInputState = Enum.UserInputState.Begin,
+            Position = Camera:WorldToViewportPoint(orePart.Position)
+        }
+        
+        for _, connection in pairs(getconnections(UserInputService.InputBegan)) do
+            connection:Fire(fakeInput, false)
+        end
+        
+        task.wait(0.05)
+        
+        fakeInput.UserInputState = Enum.UserInputState.End
+        for _, connection in pairs(getconnections(UserInputService.InputEnded)) do
+            connection:Fire(fakeInput, false)
+        end
+    end)
+    
+    -- Phương pháp 5: VIM click
     pcall(function()
         VIM:SendMouseButtonEvent(0, 0, 0, true, game, 1)
         task.wait(0.05)
