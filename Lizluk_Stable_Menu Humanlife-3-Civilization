@@ -1,0 +1,84 @@
+--// LIZLUK ROLE CHANGER 🦋 BẢN SIÊU ỔN ĐỊNH
+repeat task.wait() until game:IsLoaded()
+
+local player = game:GetService("Players").LocalPlayer
+local UIS = game:GetService("UserInputService")
+
+local roles = {
+    "Farmer", "Defender", "Artisan", "Blacksmith", "Engineer", 
+    "Chef", "Scholar", "Doctor", "Extractor", "Priest", 
+    "Merchant", "Noble"
+}
+
+---------------- 🎨 TẠO GUI MỚI (CHẮC CHẮN HIỆN) ----------------
+local gui = Instance.new("ScreenGui")
+gui.Name = "Lizluk_Stable_Menu"
+gui.ResetOnSpawn = false
+-- Ưu tiên đưa vào CoreGui để không bao giờ mất
+pcall(function() gui.Parent = game:GetService("CoreGui") end)
+if not gui.Parent then gui.Parent = player:WaitForChild("PlayerGui") end
+
+local main = Instance.new("Frame", gui)
+main.Size = UDim2.fromOffset(250, 350)
+main.Position = UDim2.new(0.5, -125, 0.5, -175)
+main.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+main.Active = true
+main.Draggable = true
+main.Visible = true -- Mặc định hiện khi mới chạy
+Instance.new("UICorner", main)
+
+local title = Instance.new("TextLabel", main)
+title.Size = UDim2.new(1, 0, 0, 40)
+title.Text = "ROLE CHANGER (PHÍM K)"
+title.TextColor3 = Color3.new(1, 1, 1)
+title.BackgroundColor3 = Color3.fromRGB(41, 128, 185)
+Instance.new("UICorner", title)
+
+local scroll = Instance.new("ScrollingFrame", main)
+scroll.Size = UDim2.new(0.9, 0, 0.8, 0)
+scroll.Position = UDim2.new(0.05, 0, 0.15, 0)
+scroll.CanvasSize = UDim2.new(0, 0, 0, #roles * 35)
+scroll.BackgroundTransparency = 1
+scroll.ScrollBarThickness = 3
+
+local layout = Instance.new("UIListLayout", scroll)
+layout.Padding = UDim.new(0, 5)
+layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+-- Tạo nút bấm
+for _, roleName in ipairs(roles) do
+    local btn = Instance.new("TextButton", scroll)
+    btn.Size = UDim2.new(0.95, 0, 0, 30)
+    btn.Text = roleName
+    btn.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.Font = Enum.Font.Gotham
+    Instance.new("UICorner", btn)
+
+    btn.MouseButton1Click:Connect(function()
+        pcall(function()
+            -- Tự động tìm lại đường dẫn khi nhấn (Chống lỗi sau khi chết)
+            local target = workspace:FindFirstChild("RikaOrimoto_777")
+            if target then
+                local roleValue = target:FindFirstChild("Stats"):FindFirstChild("Role")
+                if roleValue then
+                    roleValue.Value = roleName
+                    print("✅ Đã đổi sang: " .. roleName)
+                end
+            end
+        end)
+        
+        btn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+        task.wait(0.2)
+        btn.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+    end)
+end
+
+---------------- ⌨️ PHÍM TẮT K ----------------
+UIS.InputBegan:Connect(function(input, g)
+    if not g and input.KeyCode == Enum.KeyCode.K then
+        main.Visible = not main.Visible
+    end
+end)
+
+print("LIZLUK: GUI đã tải xong. Nhấn 'K' để ẩn/hiện!")
