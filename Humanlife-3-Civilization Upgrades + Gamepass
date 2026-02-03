@@ -1,0 +1,43 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+
+-- Hàm thực hiện việc "Bật" tất cả các giá trị
+local function enableEverything()
+    local dataStore = player:WaitForChild("DataStore", 10)
+    if not dataStore then return end
+
+    -- Danh sách các thư mục cần quét
+    local targetFolders = {
+        dataStore:WaitForChild("Upgrades", 5),
+        dataStore:WaitForChild("Gamepass", 5)
+    }
+
+    for _, folder in pairs(targetFolders) do
+        if folder then
+            for _, value in pairs(folder:GetChildren()) do
+                if value:IsA("BoolValue") and value.Value == false then
+                    value.Value = true
+                    print("Đã kích hoạt: " .. value.Name)
+                end
+            end
+        end
+    end
+end
+
+-- Chạy ngay lập tức khi script load
+enableEverything()
+
+-- Đảm bảo vẫn hoạt động sau khi chết (khi Character load lại)
+player.CharacterAdded:Connect(function()
+    task.wait(2) -- Đợi một chút để dữ liệu tải xong sau khi hồi sinh
+    enableEverything()
+end)
+
+-- Vòng lặp kiểm tra liên tục (đề phòng trường hợp giá trị bị reset bởi server)
+task.spawn(function()
+    while true do
+        enableEverything()
+        task.wait(5) -- Kiểm tra lại mỗi 5 giây
+    end
+end)
