@@ -1,0 +1,31 @@
+local character = workspace:WaitForChild("RikaOrimoto_777")
+
+-- Hàm để hồi phục các chỉ số về 100
+local function maxOutAttributes()
+    character:SetAttribute("Food", 100)
+    character:SetAttribute("Oxygen", 100)
+    character:SetAttribute("Stamina", 100) -- Nếu có thuộc tính này
+    character:SetAttribute("Water", 100)   -- Nếu có thuộc tính này
+end
+
+-- Chạy vòng lặp để đảm bảo nó luôn đầy (mỗi 0.5 giây check một lần)
+task.spawn(function()
+    while true do
+        maxOutAttributes()
+        task.wait(0.5) 
+    end
+end)
+
+-- Lắng nghe khi thuộc tính thay đổi để ép nó về 100 ngay lập tức (phản ứng nhanh)
+character.AttributeChanged:Connect(function(attributeName)
+    local targetAttributes = {["Food"] = true, ["Oxygen"] = true, ["Stamina"] = true, ["Water"] = true}
+    
+    if targetAttributes[attributeName] then
+        local currentValue = character:GetAttribute(attributeName)
+        if currentValue < 100 then
+            character:SetAttribute(attributeName, 100)
+        end
+    end
+end)
+
+print("Đã kích hoạt chế độ 'Bất tử' nhu cầu cho " .. character.Name)
