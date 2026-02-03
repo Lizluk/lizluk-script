@@ -15,58 +15,64 @@ if player.UserId ~= ALLOWED_USERID then return end
 
 ---------------- CONFIG ----------------
 _G.LIZLUK_CONFIG = {
-    -- Core Stats
-    MaxHealth = 5000,
-    Health = 5000,
-    MaxStamina = 10000,
-    Stamina = 10000,
-    MaxHunger = 10000,
-    Hunger = 10000,
-    
-    -- Character Attributes
     Attributes = {
+        -- Health & Stamina & Hunger
+        MaxHealth = 5000,
+        Health = 5000,
+        MaxStamina = 10000,
+        Stamina = 10000,
+        MaxHunger = 1000,
+        Hunger = 1000,
+        
+        -- Attack & Combat
         AttackDamage = 12.5,
         AttackKnockbackAmount = 0,
         AttackLocomotion = 4,
         AttackStopCalls = true,
         AttackWhileSwimming = true,
         AttackZone2 = 0,
+        
+        -- Movement Abilities
         CanClimb = true,
         CanFlee = true,
         CanGrapple = false,
         CanHeal = false,
         CanJump = true,
         CanQuickStand = true,
+        
+        -- Speed Stats
         CrouchSpeed = 1.6,
         CrouchTrotSpeed = 7.4,
+        JumpSpeed = 24.3,
+        SprintSpeed = 40,
+        SwimSpeed = 6.3,
+        TrotSpeed = 9,
+        TurnSpeed = 33,
+        WalkBackwardSpeed = 1.6,
+        WalkSpeed = 2.78,
+        
+        -- Misc Stats
         DustOffset = -1.21,
         FallResistance = 1,
-        JumpSpeed = 24.3,
         MaxSlopeAngle = 72,
         MinigameScore = 0,
         MovementScale = 1,
         Running = true,
         ScentPower = 1000,
         Spooked = 0,
-        SprintSpeed = 40,
         Stealth = 60,
         StepVolume = 1,
         StressGoal = 1,
         StressMulti = 1,
         SwimOffset = -0.62,
         SwimRunMulti = 1.5,
-        SwimSpeed = 6.3,
         Thirst = math.huge,
         Tilt = 55,
         TiltMagnitude = 20,
         TiltMulti = 1.15,
         TrailLerp = 0.1,
         TrotRegenMulti = 5,
-        TrotSpeed = 9,
-        TurnSpeed = 33,
         VerticalHeadTurnSpeed = 0.9,
-        WalkBackwardSpeed = 1.6,
-        WalkSpeed = 2.78,
         Weight = 60
     }
 }
@@ -76,17 +82,7 @@ local DATA = _G.LIZLUK_CONFIG
 local function applyToCharacter(char)
     if not char then return end
     
-    -- Apply Core Stats
-    pcall(function()
-        char:SetAttribute("MaxHealth", DATA.MaxHealth)
-        char:SetAttribute("Health", DATA.Health)
-        char:SetAttribute("MaxStamina", DATA.MaxStamina)
-        char:SetAttribute("Stamina", DATA.Stamina)
-        char:SetAttribute("MaxHunger", DATA.MaxHunger)
-        char:SetAttribute("Hunger", DATA.Hunger)
-    end)
-    
-    -- Apply Character Attributes
+    -- Apply tất cả Attributes
     local attrFolder = char:FindFirstChild("Attributes")
     if attrFolder then
         for k, v in pairs(DATA.Attributes) do
@@ -103,14 +99,16 @@ local function applyToCharacter(char)
         end
     end
     
-    -- Apply Humanoid
+    -- Apply Humanoid Health
     local hum = char:FindFirstChildOfClass("Humanoid")
     if hum then
-        hum.MaxHealth = DATA.MaxHealth
-        hum.Health = math.clamp(DATA.Health, 0, DATA.MaxHealth)
+        local maxHp = DATA.Attributes.MaxHealth or 5000
+        local hp = DATA.Attributes.Health or 5000
+        hum.MaxHealth = maxHp
+        hum.Health = math.clamp(hp, 0, maxHp)
     end
     
-    print("✅ Đã apply stats cho nhân vật!")
+    print("✅ Đã apply " .. #DATA.Attributes .. " attributes cho nhân vật!")
 end
 
 ---------------- AUTO APPLY ----------------
@@ -133,7 +131,7 @@ pcall(function() gui.Parent = game:GetService("CoreGui") end)
 local main = Instance.new("ScrollingFrame", gui)
 main.Size = UDim2.fromScale(0.36, 0.75)
 main.Position = UDim2.fromScale(0.32, 0.12)
-main.CanvasSize = UDim2.fromScale(0, 5) -- Tăng để chứa nhiều item hơn
+main.CanvasSize = UDim2.fromScale(0, 8) -- Tăng lên để chứa hết 50+ attributes
 main.ScrollBarThickness = 8
 main.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
 main.BorderSizePixel = 0
@@ -212,49 +210,9 @@ end
 ---------------- BUILD GUI ----------------
 local y = 0.04
 
--- CORE STATS
-y += sectionHeader("CORE STATS", y)
-y += 0.002
-
-inputBox("MaxHealth", DATA.MaxHealth, function(n)
-    DATA.MaxHealth = n
-    if player.Character then applyToCharacter(player.Character) end
-end, y)
-y += 0.03
-
-inputBox("Health", DATA.Health, function(n)
-    DATA.Health = n
-    if player.Character then applyToCharacter(player.Character) end
-end, y)
-y += 0.03
-
-inputBox("MaxStamina", DATA.MaxStamina, function(n)
-    DATA.MaxStamina = n
-    if player.Character then applyToCharacter(player.Character) end
-end, y)
-y += 0.03
-
-inputBox("Stamina", DATA.Stamina, function(n)
-    DATA.Stamina = n
-    if player.Character then applyToCharacter(player.Character) end
-end, y)
-y += 0.03
-
-inputBox("MaxHunger", DATA.MaxHunger, function(n)
-    DATA.MaxHunger = n
-    if player.Character then applyToCharacter(player.Character) end
-end, y)
-y += 0.03
-
-inputBox("Hunger", DATA.Hunger, function(n)
-    DATA.Hunger = n
-    if player.Character then applyToCharacter(player.Character) end
-end, y)
-y += 0.035
-
 -- APPLY BUTTON
 local applyBtn = Instance.new("TextButton", main)
-applyBtn.Size = UDim2.fromScale(0.9, 0.032)
+applyBtn.Size = UDim2.fromScale(0.9, 0.035)
 applyBtn.Position = UDim2.fromScale(0.05, y)
 applyBtn.Text = "✨ APPLY ALL NOW"
 applyBtn.BackgroundColor3 = Color3.fromRGB(80, 50, 120)
@@ -273,10 +231,10 @@ applyBtn.MouseButton1Click:Connect(function()
         })
     end
 end)
-y += 0.04
+y += 0.045
 
 -- CHARACTER ATTRIBUTES
-y += sectionHeader("CHARACTER ATTRIBUTES", y)
+y += sectionHeader("ALL ATTRIBUTES", y)
 y += 0.002
 
 -- Sắp xếp attributes theo thứ tự alphabet
