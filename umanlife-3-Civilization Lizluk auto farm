@@ -6,7 +6,7 @@ local UIS = game:GetService("UserInputService")
 local resources = workspace:WaitForChild("Resources")
 
 -- Loại quặng đang chọn để bay tới / farm
-_G.SelectedOre = "Iron Ore"
+_G.SelectedOre = "Iron"
 _G.AutoFarming = false
 
 ---------------- 🎨 TẠO GUI (CORE GUI - KÉO ĐƯỢC) ----------------
@@ -56,7 +56,7 @@ scroll.CanvasSize = UDim2.new(0, 0, 0, 350)
 scroll.BackgroundTransparency = 1
 Instance.new("UIListLayout", scroll).Padding = UDim.new(0, 5)
 
-local ores = {"Iron Ore", "Clay", "Copper", "Rock", "Coal", "Tin", "Tree", "Sand"}
+local ores = {"Iron", "Clay", "Copper", "Rock", "Coal", "Tin", "Tree", "Sand"}
 
 for _, name in ipairs(ores) do
     local btn = Instance.new("TextButton", scroll)
@@ -126,38 +126,60 @@ local isFarming = false
 local Camera = workspace.CurrentCamera
 local mouse = player:GetMouse()
 local VIM = game:GetService("VirtualInputManager")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local function clickOre(orePart)
     if not orePart then return false end
     
-    -- Thử ClickDetector trước
+    -- Phương pháp 1: Thử ClickDetector
     local clickDetector = orePart:FindFirstChildOfClass("ClickDetector") or orePart.Parent:FindFirstChildOfClass("ClickDetector")
     if clickDetector then
         fireclickdetector(clickDetector)
         return true
     end
     
-    -- Thử ProximityPrompt
+    -- Phương pháp 2: Thử ProximityPrompt
     local prompt = orePart:FindFirstChildOfClass("ProximityPrompt") or orePart.Parent:FindFirstChildOfClass("ProximityPrompt")
     if prompt then
         fireproximityprompt(prompt)
         return true
     end
     
-    -- Dùng VirtualInputManager để click (tương thích Solara)
+    -- Phương pháp 3: Tìm và fire RemoteEvent (nếu game dùng remote)
+    pcall(function()
+        for _, v in pairs(ReplicatedStorage:GetDescendants()) do
+            if v:IsA("RemoteEvent") and (v.Name:lower():find("mine") or v.Name:lower():find("hit") or v.Name:lower():find("damage") or v.Name:lower():find("harvest")) then
+                v:FireServer(orePart)
+            end
+        end
+    end)
+    
+    -- Phương pháp 4: VirtualInputManager click
     pcall(function()
         VIM:SendMouseButtonEvent(0, 0, 0, true, game, 1)
-        task.wait(0.05)
+        task.wait(0.03)
         VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+    end)
+    
+    -- Phương pháp 5: Equip tool nếu có trong backpack
+    pcall(function()
+        local tool = player.Backpack:FindFirstChildOfClass("Tool") or player.Character:FindFirstChildOfClass("Tool")
+        if tool and not tool.Parent:IsA("Backpack") then
+            -- Tool đã equip
+            tool:Activate()
+        elseif tool then
+            -- Equip tool
+            player.Character.Humanoid:EquipTool(tool)
+            task.wait(0.1)
+            tool:Activate()
+        end
     end)
     
     return true
 end
 
 spawn(function()
-    local holdingClick = false
-    
-    while task.wait(0.05) do -- Loop nhanh để giữ click
+    while task.wait(0.1) do
         if _G.AutoFarming then
             local char = player.Character
             local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -166,18 +188,10 @@ spawn(function()
             if root and humanoid then
                 -- Nếu chưa có target hoặc target đã bị phá hủy
                 if not currentTarget or not currentTarget.Parent then
-                    -- Nhả chuột trước khi tìm target mới
-                    if holdingClick then
-                        pcall(function()
-                            VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1)
-                        end)
-                        holdingClick = false
-                    end
-                    
                     print("🔍 Đang tìm mục tiêu mới...")
                     currentTarget = teleportToOre(false)
                     if currentTarget then
-                        print("✅ Đã tìm thấy và teleport đến mục tiêu!")
+                        print("✅ Đã tìm thấy: " .. currentTarget.Name)
                     end
                     task.wait(0.5)
                 end
@@ -188,50 +202,24 @@ spawn(function()
                     
                     -- CHỈ teleport lại nếu QUÁ XA
                     if dist > 20 then
-                        -- Nhả chuột trước khi teleport
-                        if holdingClick then
-                            pcall(function()
-                                VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1)
-                            end)
-                            holdingClick = false
-                        end
-                        
-                        print("⚠️ Quá xa mục tiêu, đang điều chỉnh vị trí...")
+                        print("⚠️ Quá xa, đang điều chỉnh...")
                         root.CFrame = CFrame.new(currentTarget.Position + Vector3.new(0, 3, 2), currentTarget.Position)
                         task.wait(0.3)
                     end
                     
-                    -- Xoay nhân vật và camera nhìn vào quặng
+                    -- Xoay nhân vật nhìn vào quặng
                     root.CFrame = CFrame.new(root.Position, Vector3.new(currentTarget.Position.X, root.Position.Y, currentTarget.Position.Z))
-                    Camera.CFrame = CFrame.new(Camera.CFrame.Position, currentTarget.Position)
                     
-                    -- GIỮ CHUỘT LIÊN TỤC (không nhả ra)
-                    if not holdingClick then
-                        pcall(function()
-                            VIM:SendMouseButtonEvent(0, 0, 0, true, game, 1)
-                        end)
-                        holdingClick = true
-                        print("🔨 Đang farm...")
-                    end
+                    -- Set mouse target
+                    mouse.Target = currentTarget
+                    
+                    -- Click để farm (thử nhiều phương pháp)
+                    clickOre(currentTarget)
                 else
-                    -- Nhả chuột khi không còn target
-                    if holdingClick then
-                        pcall(function()
-                            VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1)
-                        end)
-                        holdingClick = false
-                    end
                     currentTarget = nil
                 end
             end
         else
-            -- Nhả chuột khi tắt auto farm
-            if holdingClick then
-                pcall(function()
-                    VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1)
-                end)
-                holdingClick = false
-            end
             currentTarget = nil
             task.wait(1)
         end
