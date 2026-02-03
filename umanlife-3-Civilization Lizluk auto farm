@@ -127,59 +127,84 @@ local Camera = workspace.CurrentCamera
 local mouse = player:GetMouse()
 local VIM = game:GetService("VirtualInputManager")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
 
 local function clickOre(orePart)
     if not orePart then return false end
     
-    -- Phương pháp 1: Thử ClickDetector
-    local clickDetector = orePart:FindFirstChildOfClass("ClickDetector") or orePart.Parent:FindFirstChildOfClass("ClickDetector")
-    if clickDetector then
-        fireclickdetector(clickDetector)
-        return true
+    -- Tìm model cha của quặng
+    local oreModel = orePart.Parent
+    
+    -- Phương pháp 1: Thử TẤT CẢ ClickDetector trong model
+    local foundClick = false
+    for _, child in pairs(oreModel:GetDescendants()) do
+        if child:IsA("ClickDetector") then
+            pcall(function()
+                fireclickdetector(child, 0) -- 0 = left click
+            end)
+            foundClick = true
+        end
     end
+    
+    if foundClick then return true end
     
     -- Phương pháp 2: Thử ProximityPrompt
-    local prompt = orePart:FindFirstChildOfClass("ProximityPrompt") or orePart.Parent:FindFirstChildOfClass("ProximityPrompt")
-    if prompt then
-        fireproximityprompt(prompt)
-        return true
+    for _, child in pairs(oreModel:GetDescendants()) do
+        if child:IsA("ProximityPrompt") then
+            pcall(function()
+                fireproximityprompt(child)
+            end)
+            return true
+        end
     end
     
-    -- Phương pháp 3: Tìm và fire RemoteEvent (nếu game dùng remote)
+    -- Phương pháp 3: Simulate MouseButton1Down/Up event
+    pcall(function()
+        -- Tạo fake input event
+        local inputObject = {
+            UserInputType = Enum.UserInputType.MouseButton1,
+            UserInputState = Enum.UserInputState.Begin
+        }
+        
+        -- Fire sự kiện click
+        for _, v in pairs(getconnections(UserInputService.InputBegan)) do
+            v:Fire(inputObject)
+        end
+        
+        task.wait(0.05)
+        
+        inputObject.UserInputState = Enum.UserInputState.End
+        for _, v in pairs(getconnections(UserInputService.InputEnded)) do
+            v:Fire(inputObject)
+        end
+    end)
+    
+    -- Phương pháp 4: Fire tất cả RemoteEvents có liên quan
     pcall(function()
         for _, v in pairs(ReplicatedStorage:GetDescendants()) do
-            if v:IsA("RemoteEvent") and (v.Name:lower():find("mine") or v.Name:lower():find("hit") or v.Name:lower():find("damage") or v.Name:lower():find("harvest")) then
-                v:FireServer(orePart)
+            if v:IsA("RemoteEvent") then
+                local name = v.Name:lower()
+                if name:find("mine") or name:find("hit") or name:find("swing") or name:find("damage") or name:find("harvest") or name:find("collect") then
+                    v:FireServer(orePart)
+                    v:FireServer(oreModel)
+                    v:FireServer()
+                end
             end
         end
     end)
     
-    -- Phương pháp 4: VirtualInputManager click
+    -- Phương pháp 5: VIM click (backup)
     pcall(function()
         VIM:SendMouseButtonEvent(0, 0, 0, true, game, 1)
-        task.wait(0.03)
+        task.wait(0.05)
         VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1)
-    end)
-    
-    -- Phương pháp 5: Equip tool nếu có trong backpack
-    pcall(function()
-        local tool = player.Backpack:FindFirstChildOfClass("Tool") or player.Character:FindFirstChildOfClass("Tool")
-        if tool and not tool.Parent:IsA("Backpack") then
-            -- Tool đã equip
-            tool:Activate()
-        elseif tool then
-            -- Equip tool
-            player.Character.Humanoid:EquipTool(tool)
-            task.wait(0.1)
-            tool:Activate()
-        end
     end)
     
     return true
 end
 
 spawn(function()
-    while task.wait(0.1) do
+    while task.wait(0.15) do -- Click với tần suất vừa phải
         if _G.AutoFarming then
             local char = player.Character
             local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -192,6 +217,7 @@ spawn(function()
                     currentTarget = teleportToOre(false)
                     if currentTarget then
                         print("✅ Đã tìm thấy: " .. currentTarget.Name)
+                        print("📍 Vị trí: " .. tostring(currentTarget.Position))
                     end
                     task.wait(0.5)
                 end
@@ -210,10 +236,8 @@ spawn(function()
                     -- Xoay nhân vật nhìn vào quặng
                     root.CFrame = CFrame.new(root.Position, Vector3.new(currentTarget.Position.X, root.Position.Y, currentTarget.Position.Z))
                     
-                    -- Set mouse target
-                    mouse.Target = currentTarget
-                    
-                    -- Click để farm (thử nhiều phương pháp)
+                    -- Click để farm
+                    print("🔨 Đang farm...")
                     clickOre(currentTarget)
                 else
                     currentTarget = nil
