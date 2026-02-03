@@ -115,21 +115,38 @@ end
 ---------------- ⛏️ HÀM FARM TỰ ĐỘNG ----------------
 local currentTarget = nil
 local isFarming = false
+local VirtualUser = game:GetService("VirtualUser")
+local Camera = workspace.CurrentCamera
 
 local function clickOre(orePart)
-    if not orePart then return end
+    if not orePart then return false end
     
-    -- Sử dụng ClickDetector hoặc ProximityPrompt nếu có
+    -- Thử ClickDetector trước
     local clickDetector = orePart:FindFirstChildOfClass("ClickDetector") or orePart.Parent:FindFirstChildOfClass("ClickDetector")
     if clickDetector then
         fireclickdetector(clickDetector)
         return true
     end
     
-    -- Nếu game dùng ProximityPrompt
+    -- Thử ProximityPrompt
     local prompt = orePart:FindFirstChildOfClass("ProximityPrompt") or orePart.Parent:FindFirstChildOfClass("ProximityPrompt")
     if prompt then
         fireproximityprompt(prompt)
+        return true
+    end
+    
+    -- Mô phỏng click chuột vào vị trí quặng trên màn hình
+    local screenPos, onScreen = Camera:WorldToViewportPoint(orePart.Position)
+    if onScreen then
+        -- Di chuyển chuột đến vị trí quặng
+        VirtualUser:SetMousePosition(screenPos.X, screenPos.Y)
+        task.wait(0.05)
+        
+        -- Click chuột trái
+        VirtualUser:Button1Down(Vector2.new(screenPos.X, screenPos.Y))
+        task.wait(0.05)
+        VirtualUser:Button1Up(Vector2.new(screenPos.X, screenPos.Y))
+        
         return true
     end
     
@@ -137,12 +154,13 @@ local function clickOre(orePart)
 end
 
 spawn(function()
-    while task.wait(0.1) do
+    while task.wait(0.15) do
         if _G.AutoFarming then
             local char = player.Character
             local root = char and char:FindFirstChild("HumanoidRootPart")
+            local humanoid = char and char:FindFirstChild("Humanoid")
             
-            if root then
+            if root and humanoid then
                 -- Nếu chưa có target hoặc target đã bị phá hủy
                 if not currentTarget or not currentTarget.Parent then
                     currentTarget = teleportToOre()
@@ -159,6 +177,13 @@ spawn(function()
                         root.CFrame = CFrame.new(currentTarget.Position + Vector3.new(0, 3, 2), currentTarget.Position)
                         task.wait(0.3)
                     end
+                    
+                    -- Xoay nhân vật nhìn vào quặng
+                    local lookCFrame = CFrame.new(root.Position, currentTarget.Position)
+                    root.CFrame = CFrame.new(root.Position, Vector3.new(currentTarget.Position.X, root.Position.Y, currentTarget.Position.Z))
+                    
+                    -- Xoay camera nhìn vào quặng
+                    Camera.CFrame = CFrame.new(Camera.CFrame.Position, currentTarget.Position)
                     
                     -- Click vào quặng để farm
                     clickOre(currentTarget)
