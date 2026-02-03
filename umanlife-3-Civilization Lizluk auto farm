@@ -125,6 +125,7 @@ local currentTarget = nil
 local isFarming = false
 local Camera = workspace.CurrentCamera
 local mouse = player:GetMouse()
+local VIM = game:GetService("VirtualInputManager")
 
 local function clickOre(orePart)
     if not orePart then return false end
@@ -143,16 +144,20 @@ local function clickOre(orePart)
         return true
     end
     
-    -- Mô phỏng click chuột trực tiếp
+    -- Dùng VirtualInputManager để click (tương thích Solara)
     pcall(function()
-        mouse1click()
+        VIM:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+        task.wait(0.05)
+        VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1)
     end)
     
     return true
 end
 
 spawn(function()
-    while task.wait(0.1) do -- Click nhanh hơn (mỗi 0.1 giây)
+    local holdingClick = false
+    
+    while task.wait(0.05) do -- Loop nhanh để giữ click
         if _G.AutoFarming then
             local char = player.Character
             local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -161,40 +166,72 @@ spawn(function()
             if root and humanoid then
                 -- Nếu chưa có target hoặc target đã bị phá hủy
                 if not currentTarget or not currentTarget.Parent then
+                    -- Nhả chuột trước khi tìm target mới
+                    if holdingClick then
+                        pcall(function()
+                            VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+                        end)
+                        holdingClick = false
+                    end
+                    
                     print("🔍 Đang tìm mục tiêu mới...")
-                    currentTarget = teleportToOre(false) -- false = lấy cục gần nhất
+                    currentTarget = teleportToOre(false)
                     if currentTarget then
                         print("✅ Đã tìm thấy và teleport đến mục tiêu!")
                     end
-                    task.wait(0.5) -- Đợi teleport ổn định
+                    task.wait(0.5)
                 end
                 
                 -- Nếu có target, tiếp tục farm
                 if currentTarget and currentTarget.Parent then
-                    -- Kiểm tra khoảng cách
                     local dist = (root.Position - currentTarget.Position).Magnitude
                     
-                    -- CHỈ teleport lại nếu QUÁ XA (hơn 20m)
+                    -- CHỈ teleport lại nếu QUÁ XA
                     if dist > 20 then
+                        -- Nhả chuột trước khi teleport
+                        if holdingClick then
+                            pcall(function()
+                                VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+                            end)
+                            holdingClick = false
+                        end
+                        
                         print("⚠️ Quá xa mục tiêu, đang điều chỉnh vị trí...")
                         root.CFrame = CFrame.new(currentTarget.Position + Vector3.new(0, 3, 2), currentTarget.Position)
                         task.wait(0.3)
                     end
                     
-                    -- Xoay nhân vật nhìn vào quặng
+                    -- Xoay nhân vật và camera nhìn vào quặng
                     root.CFrame = CFrame.new(root.Position, Vector3.new(currentTarget.Position.X, root.Position.Y, currentTarget.Position.Z))
+                    Camera.CFrame = CFrame.new(Camera.CFrame.Position, currentTarget.Position)
                     
-                    -- Đảm bảo chuột đang trỏ vào quặng
-                    mouse.Target = currentTarget
-                    
-                    -- Click liên tục để farm
-                    clickOre(currentTarget)
+                    -- GIỮ CHUỘT LIÊN TỤC (không nhả ra)
+                    if not holdingClick then
+                        pcall(function()
+                            VIM:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+                        end)
+                        holdingClick = true
+                        print("🔨 Đang farm...")
+                    end
                 else
-                    -- Không còn target, tìm target mới
+                    -- Nhả chuột khi không còn target
+                    if holdingClick then
+                        pcall(function()
+                            VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+                        end)
+                        holdingClick = false
+                    end
                     currentTarget = nil
                 end
             end
         else
+            -- Nhả chuột khi tắt auto farm
+            if holdingClick then
+                pcall(function()
+                    VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+                end)
+                holdingClick = false
+            end
             currentTarget = nil
             task.wait(1)
         end
