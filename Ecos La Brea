@@ -10,7 +10,7 @@ local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 
 ---------------- USER LOCK ----------------
-local ALLOWED_USERID = 8076792445 -- <<< ĐỔI USERID CỦA BẠN
+local ALLOWED_USERID = 10444884250 -- <<< ĐỔI USERID CỦA BẠN
 if player.UserId ~= ALLOWED_USERID then return end
 
 ---------------- CONFIG ----------------
