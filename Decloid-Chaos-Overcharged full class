@@ -1,0 +1,26 @@
+local Players = game:GetService("Players")
+local lp = Players.LocalPlayer
+
+-- Hàm để kích hoạt tất cả các Class
+local function unlockClasses()
+    local data = lp:FindFirstChild("PlayerData")
+    if data and data:FindFirstChild("AllClasses") then
+        local classes = data.AllClasses:GetChildren()
+        
+        for _, class in pairs(classes) do
+            if class:IsA("BoolValue") then
+                class.Value = true
+            end
+        end
+        print("Đã kích hoạt toàn bộ Classes!")
+    end
+end
+
+-- Chạy hàm ngay lập tức
+unlockClasses()
+
+-- Lắng nghe sự kiện khi nhân vật hồi sinh để tránh bị reset (nếu game cho phép Client can thiệp)
+lp.CharacterAdded:Connect(function()
+    task.wait(1) -- Đợi một chút để dữ liệu tải xong sau khi chết
+    unlockClasses()
+end)
