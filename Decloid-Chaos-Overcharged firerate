@@ -1,0 +1,42 @@
+local player = game:GetService("Players").LocalPlayer
+local backpack = player:FindFirstChild("Backpack")
+
+-- Bảng thông số ông muốn chỉnh
+local customSettings = {
+    ["Firerate"] = 0.001,
+    ["Damage"] = 99999,
+    ["Spread"] = 0,
+    ["CriticalBuff"] = 10000,
+    ["CriticalProbability"] = 100
+}
+
+local function cutPasteTweak()
+    for _, tool in ipairs(backpack:GetChildren()) do
+        if tool:IsA("Tool") then
+            local settings = tool:FindFirstChild("Settings")
+            
+            if settings then
+                -- 1. Tạm thời nhấc Settings ra Folder rác để "ngắt kết nối" check
+                settings.Parent = game:GetService("TestService") 
+                
+                -- 2. Chỉnh thông số trong khi nó đang nằm ngoài
+                for name, value in pairs(customSettings) do
+                    local target = settings:FindFirstChild(name)
+                    if target and target:IsA("ValueBase") then
+                        target.Value = value
+                    end
+                end
+                
+                -- Đợi một nhịp cực ngắn để game mất dấu
+                task.wait(0.1)
+                
+                -- 3. Dán lại vào Tool
+                settings.Parent = tool
+                print("Đã hack xong vũ khí: " .. tool.Name)
+            end
+        end
+    end
+end
+
+-- Chạy script
+cutPasteTweak()
