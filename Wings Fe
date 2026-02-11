@@ -325,7 +325,7 @@ local function startWings()
                 Vector3.new(0,bn(not moving)*-ani*15+(descending and math.min(20,tick()-descendtimer)*-8 or bn(keysdown[" "])-bn(keysdown["q"]))*15,0)+vel,
                 .6)
             vel=moving and cf.lookVector*flspd or Vector3.new()
-            flspd=math.min(100,lerp(flspd,moving and (fldir.Y<0 and flspd+(-fldir.Y)*grav/60 or math.max(100,flspd-fldir.Y*grav/200)) or 60,.4))
+            flspd=math.min(70,lerp(flspd,moving and (fldir.Y<0 and flspd+(-fldir.Y)*grav/60 or math.max(70,flspd-fldir.Y*grav/200)) or 60,.4))
 
             setwings(moving and (gdown and outlow or dbomb and divebomb) or (descending and veryhigh or flap1),15)
 
