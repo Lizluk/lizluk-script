@@ -6,6 +6,7 @@
     - Animation emote luôn chạy dù nhảy, chạy, va chạm
     - Ghi đè Humanoid State để không dừng anim
     - Tự động restart nếu bị stop
+    - Nút Tạm dừng / Tiếp tục animation
     - Có GUI để chọn emote
 --]]
 
@@ -58,6 +59,7 @@ local Config = {
 
 local currentLockedTrack = nil
 local isLocked = false
+local isPaused = false
 
 -- Lưu lại track animation đang chạy từ emote
 local function GetCurrentEmoteTrack()
@@ -164,6 +166,16 @@ local function StartPersistLoop()
         if not isLocked then return end
         if not currentLockedTrack then return end
         
+        -- Nếu đang tạm dừng: giữ animation ở frame cuối (speed = 0)
+        if isPaused then
+            if currentLockedTrack.IsPlaying then
+                pcall(function()
+                    currentLockedTrack:AdjustSpeed(0)
+                end)
+            end
+            return
+        end
+        
         -- Nếu track bị stop, play lại
         if not currentLockedTrack.IsPlaying then
             pcall(function()
@@ -171,6 +183,11 @@ local function StartPersistLoop()
                 currentLockedTrack.Priority = Enum.AnimationPriority.Action4
             end)
         end
+        
+        -- Đảm bảo speed đúng (phòng trường hợp vừa resume)
+        pcall(function()
+            currentLockedTrack:AdjustSpeed(Config.AnimationSpeed)
+        end)
         
         -- Dừng các animation state mặc định (jump, fall) nếu emote đang lock
         local playingTracks = Animator:GetPlayingAnimationTracks()
@@ -200,8 +217,8 @@ ScreenGui.Parent = LocalPlayer.PlayerGui
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 200, 0, 90)
-MainFrame.Position = UDim2.new(0.5, -100, 1, -110)
+MainFrame.Size = UDim2.new(0, 200, 0, 120)
+MainFrame.Position = UDim2.new(0.5, -100, 1, -135)
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 MainFrame.BackgroundTransparency = 0.1
 MainFrame.BorderSizePixel = 0
@@ -268,6 +285,21 @@ local StopCorner = Instance.new("UICorner")
 StopCorner.CornerRadius = UDim.new(0, 6)
 StopCorner.Parent = StopButton
 
+-- Nút Tạm dừng / Tiếp tục (hàng 2, giữa)
+local PauseButton = Instance.new("TextButton")
+PauseButton.Size = UDim2.new(0, 130, 0, 28)
+PauseButton.Position = UDim2.new(0, 35, 0, 88)
+PauseButton.BackgroundColor3 = Color3.fromRGB(200, 140, 20)
+PauseButton.Text = "⏸ Tạm dừng"
+PauseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+PauseButton.TextScaled = true
+PauseButton.Font = Enum.Font.GothamBold
+PauseButton.Parent = MainFrame
+
+local PauseCorner = Instance.new("UICorner")
+PauseCorner.CornerRadius = UDim.new(0, 6)
+PauseCorner.Parent = PauseButton
+
 -- Kéo GUI
 local dragging = false
 local dragStart, startPos
@@ -318,6 +350,7 @@ end)
 
 StopButton.MouseButton1Click:Connect(function()
     isLocked = false
+    isPaused = false
     currentLockedTrack = nil
     
     if persistConnection then
@@ -325,9 +358,41 @@ StopButton.MouseButton1Click:Connect(function()
         persistConnection = nil
     end
     
+    PauseButton.Text = "⏸ Tạm dừng"
+    PauseButton.BackgroundColor3 = Color3.fromRGB(200, 140, 20)
     StatusLabel.Text = "Trạng thái: Đã unlock"
     StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
     LockButton.BackgroundColor3 = Color3.fromRGB(50, 180, 80)
+end)
+
+PauseButton.MouseButton1Click:Connect(function()
+    if not isLocked or not currentLockedTrack then
+        StatusLabel.Text = "⚠️ Lock emote trước!"
+        StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
+        return
+    end
+    
+    if not isPaused then
+        -- Tạm dừng: đặt speed = 0, animation đứng yên ở frame hiện tại
+        isPaused = true
+        pcall(function()
+            currentLockedTrack:AdjustSpeed(0)
+        end)
+        PauseButton.Text = "▶ Tiếp tục"
+        PauseButton.BackgroundColor3 = Color3.fromRGB(50, 130, 200)
+        StatusLabel.Text = "⏸ Đang tạm dừng"
+        StatusLabel.TextColor3 = Color3.fromRGB(100, 180, 255)
+    else
+        -- Tiếp tục: trả lại speed bình thường
+        isPaused = false
+        pcall(function()
+            currentLockedTrack:AdjustSpeed(Config.AnimationSpeed)
+        end)
+        PauseButton.Text = "⏸ Tạm dừng"
+        PauseButton.BackgroundColor3 = Color3.fromRGB(200, 140, 20)
+        StatusLabel.Text = "✅ Đang lock & chạy"
+        StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    end
 end)
 
 -- =============================================
@@ -344,9 +409,12 @@ LocalPlayer.CharacterAdded:Connect(function(newChar)
     HumanoidRootPart = newChar:WaitForChild("HumanoidRootPart")
     
     isLocked = false
+    isPaused = false
     currentLockedTrack = nil
     if persistConnection then persistConnection:Disconnect() end
     
+    PauseButton.Text = "⏸ Tạm dừng"
+    PauseButton.BackgroundColor3 = Color3.fromRGB(200, 140, 20)
     StatusLabel.Text = "Trạng thái: Respawn - Bật lại emote"
     StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
     
