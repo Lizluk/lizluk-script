@@ -1,0 +1,358 @@
+--[[
+    Fe Emote - Persistent Animation (No Interrupt)
+    Based on: lizluk-script Emote Fe
+    
+    Tính năng:
+    - Animation emote luôn chạy dù nhảy, chạy, va chạm
+    - Ghi đè Humanoid State để không dừng anim
+    - Tự động restart nếu bị stop
+    - Có GUI để chọn emote
+--]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid")
+local Animator = Humanoid:WaitForChild("Animator")
+local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+
+-- =============================================
+-- LOAD SCRIPT GỐC (Lizluk Emote Fe)
+-- =============================================
+local success, err = pcall(function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/Lizluk/lizluk-script/refs/heads/main/Emote%20Fe"))()
+end)
+if not success then
+    warn("[Fe Emote] Không load được script gốc: " .. tostring(err))
+end
+
+-- =============================================
+-- CẤU HÌNH
+-- =============================================
+local Config = {
+    -- Delay giữa mỗi lần check (giây)
+    CheckInterval = 0.05,
+    
+    -- Animation ID của emote bạn muốn giữ (thay bằng ID thực tế)
+    -- Để trống nếu muốn tự động detect animation đang chạy
+    TargetAnimationId = "",
+    
+    -- Tốc độ animation (1 = bình thường)
+    AnimationSpeed = 1,
+    
+    -- Có ghi đè Jump state không
+    OverrideJump = true,
+    
+    -- Có ghi đè Fall state không
+    OverrideFall = true,
+}
+
+-- =============================================
+-- PERSISTENT ANIMATION CORE
+-- =============================================
+
+local currentLockedTrack = nil
+local isLocked = false
+
+-- Lưu lại track animation đang chạy từ emote
+local function GetCurrentEmoteTrack()
+    if not Animator then return nil end
+    
+    -- Lấy tất cả track đang play
+    local playingTracks = Animator:GetPlayingAnimationTracks()
+    
+    -- Ưu tiên track theo ID cấu hình
+    if Config.TargetAnimationId ~= "" then
+        for _, track in pairs(playingTracks) do
+            if track.Animation and tostring(track.Animation.AnimationId):find(Config.TargetAnimationId) then
+                return track
+            end
+        end
+    end
+    
+    -- Nếu không có ID cụ thể, lấy track dài nhất (thường là emote)
+    -- Bỏ qua các track mặc định của Roblox
+    local defaultAnims = {
+        "507766388",  -- idle
+        "507766666",  -- walk
+        "507766951",  -- run
+        "507776061",  -- jump
+        "507776159",  -- fall
+        "507777826",  -- climb
+        "507777347",  -- swim
+    }
+    
+    for _, track in pairs(playingTracks) do
+        if track.Animation then
+            local animId = tostring(track.Animation.AnimationId)
+            local isDefault = false
+            for _, defaultId in pairs(defaultAnims) do
+                if animId:find(defaultId) then
+                    isDefault = true
+                    break
+                end
+            end
+            if not isDefault then
+                return track
+            end
+        end
+    end
+    
+    return nil
+end
+
+-- Hàm khóa animation hiện tại
+local function LockAnimation(track)
+    if not track then return end
+    
+    currentLockedTrack = track
+    isLocked = true
+    
+    -- Đảm bảo priority cao nhất
+    track.Priority = Enum.AnimationPriority.Action4
+    
+    -- Nếu đã stop thì play lại
+    if not track.IsPlaying then
+        track:Play(0, 1, Config.AnimationSpeed)
+    end
+    
+    -- Đảm bảo không bị stop bởi Humanoid
+    track:AdjustSpeed(Config.AnimationSpeed)
+    track:AdjustWeight(1)
+end
+
+-- Override Humanoid State để animation không bị gián đoạn
+local function OverrideHumanoidState()
+    -- Disable default animation script
+    local animScript = Character:FindFirstChild("Animate")
+    if animScript then
+        -- Không xóa, chỉ dừng các track mặc định khi emote đang lock
+    end
+    
+    -- Kết nối StateChanged
+    Humanoid.StateChanged:Connect(function(oldState, newState)
+        if not isLocked or not currentLockedTrack then return end
+        
+        -- Khi nhảy hoặc ngã, giữ animation emote
+        if Config.OverrideJump and (newState == Enum.HumanoidStateType.Jumping or newState == Enum.HumanoidStateType.Freefall) then
+            task.defer(function()
+                if currentLockedTrack and not currentLockedTrack.IsPlaying then
+                    currentLockedTrack:Play(0, 1, Config.AnimationSpeed)
+                end
+                if currentLockedTrack then
+                    currentLockedTrack.Priority = Enum.AnimationPriority.Action4
+                    currentLockedTrack:AdjustWeight(1)
+                end
+            end)
+        end
+    end)
+end
+
+-- Loop chính: liên tục giữ animation
+local persistConnection
+local function StartPersistLoop()
+    if persistConnection then
+        persistConnection:Disconnect()
+    end
+    
+    persistConnection = RunService.Heartbeat:Connect(function()
+        if not isLocked then return end
+        if not currentLockedTrack then return end
+        
+        -- Nếu track bị stop, play lại
+        if not currentLockedTrack.IsPlaying then
+            pcall(function()
+                currentLockedTrack:Play(0, 1, Config.AnimationSpeed)
+                currentLockedTrack.Priority = Enum.AnimationPriority.Action4
+            end)
+        end
+        
+        -- Dừng các animation state mặc định (jump, fall) nếu emote đang lock
+        local playingTracks = Animator:GetPlayingAnimationTracks()
+        for _, track in pairs(playingTracks) do
+            if track ~= currentLockedTrack and track.Animation then
+                local animId = tostring(track.Animation.AnimationId)
+                -- Dừng jump và fall animation
+                if animId:find("507776061") or animId:find("507776159") or animId:find("507766388") then
+                    pcall(function()
+                        track:Stop(0)
+                    end)
+                end
+            end
+        end
+    end)
+end
+
+-- =============================================
+-- GUI
+-- =============================================
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "PersistEmoteGui"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = LocalPlayer.PlayerGui
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 200, 0, 90)
+MainFrame.Position = UDim2.new(0.5, -100, 1, -110)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+MainFrame.BackgroundTransparency = 0.1
+MainFrame.BorderSizePixel = 0
+MainFrame.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 10)
+UICorner.Parent = MainFrame
+
+-- Tiêu đề
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 25)
+Title.Position = UDim2.new(0, 0, 0, 0)
+Title.BackgroundColor3 = Color3.fromRGB(80, 40, 120)
+Title.BackgroundTransparency = 0
+Title.Text = "🎭 Fe Emote Lock"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextScaled = true
+Title.Font = Enum.Font.GothamBold
+Title.Parent = MainFrame
+
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 10)
+TitleCorner.Parent = Title
+
+-- Status Label
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Size = UDim2.new(1, -10, 0, 20)
+StatusLabel.Position = UDim2.new(0, 5, 0, 28)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Text = "Trạng thái: Chưa lock"
+StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+StatusLabel.TextScaled = true
+StatusLabel.Font = Enum.Font.Gotham
+StatusLabel.Parent = MainFrame
+
+-- Nút Lock/Unlock
+local LockButton = Instance.new("TextButton")
+LockButton.Size = UDim2.new(0, 85, 0, 28)
+LockButton.Position = UDim2.new(0, 5, 0, 55)
+LockButton.BackgroundColor3 = Color3.fromRGB(50, 180, 80)
+LockButton.Text = "🔒 Lock Emote"
+LockButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+LockButton.TextScaled = true
+LockButton.Font = Enum.Font.GothamBold
+LockButton.Parent = MainFrame
+
+local LockCorner = Instance.new("UICorner")
+LockCorner.CornerRadius = UDim.new(0, 6)
+LockCorner.Parent = LockButton
+
+-- Nút Stop
+local StopButton = Instance.new("TextButton")
+StopButton.Size = UDim2.new(0, 85, 0, 28)
+StopButton.Position = UDim2.new(0, 105, 0, 55)
+StopButton.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+StopButton.Text = "🔓 Unlock"
+StopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+StopButton.TextScaled = true
+StopButton.Font = Enum.Font.GothamBold
+StopButton.Parent = MainFrame
+
+local StopCorner = Instance.new("UICorner")
+StopCorner.CornerRadius = UDim.new(0, 6)
+StopCorner.Parent = StopButton
+
+-- Kéo GUI
+local dragging = false
+local dragStart, startPos
+
+MainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+-- =============================================
+-- SỰ KIỆN NÚT
+-- =============================================
+
+LockButton.MouseButton1Click:Connect(function()
+    -- Tìm emote track đang chạy
+    local track = GetCurrentEmoteTrack()
+    
+    if track then
+        LockAnimation(track)
+        StartPersistLoop()
+        StatusLabel.Text = "✅ Đang lock: " .. tostring(track.Animation.AnimationId):match("%d+") or "?"
+        StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+        LockButton.BackgroundColor3 = Color3.fromRGB(30, 120, 50)
+    else
+        StatusLabel.Text = "⚠️ Bật emote trước!"
+        StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
+    end
+end)
+
+StopButton.MouseButton1Click:Connect(function()
+    isLocked = false
+    currentLockedTrack = nil
+    
+    if persistConnection then
+        persistConnection:Disconnect()
+        persistConnection = nil
+    end
+    
+    StatusLabel.Text = "Trạng thái: Đã unlock"
+    StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    LockButton.BackgroundColor3 = Color3.fromRGB(50, 180, 80)
+end)
+
+-- =============================================
+-- KHỞI ĐỘNG
+-- =============================================
+
+OverrideHumanoidState()
+
+-- Xử lý khi nhân vật respawn
+LocalPlayer.CharacterAdded:Connect(function(newChar)
+    Character = newChar
+    Humanoid = newChar:WaitForChild("Humanoid")
+    Animator = Humanoid:WaitForChild("Animator")
+    HumanoidRootPart = newChar:WaitForChild("HumanoidRootPart")
+    
+    isLocked = false
+    currentLockedTrack = nil
+    if persistConnection then persistConnection:Disconnect() end
+    
+    StatusLabel.Text = "Trạng thái: Respawn - Bật lại emote"
+    StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    
+    task.wait(1)
+    OverrideHumanoidState()
+end)
+
+print("[Fe Emote Lock] Script đã khởi động!")
+print("[Fe Emote Lock] Cách dùng: Bật emote trước, rồi nhấn 🔒 Lock Emote")
