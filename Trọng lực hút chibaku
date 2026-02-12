@@ -1,0 +1,339 @@
+-- Chibaku Tensei - Unlimited Range + Fast Sphere
+-- G lần 1: hút TẤT CẢ mọi thứ trên map về thành hình cầu trước mặt + chat "chibaku tensei"
+-- G lần 2: nổ tung + chat "aaaaaaaa"
+
+local naturalDisasterSurvivalGravityInversionGui = Instance.new("ScreenGui")
+naturalDisasterSurvivalGravityInversionGui.Name = tostring(math.random())
+naturalDisasterSurvivalGravityInversionGui.ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets
+naturalDisasterSurvivalGravityInversionGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+naturalDisasterSurvivalGravityInversionGui.ResetOnSpawn = false
+naturalDisasterSurvivalGravityInversionGui.IgnoreGuiInset = true
+naturalDisasterSurvivalGravityInversionGui.ClipToDeviceSafeArea = false
+naturalDisasterSurvivalGravityInversionGui.DisplayOrder = -1e+09
+
+local toggleButton = Instance.new("TextButton")
+toggleButton.Name = "ToggleButton"
+toggleButton.FontFace = Font.new(
+	"rbxasset://fonts/families/SourceSansPro.json",
+	Enum.FontWeight.Bold,
+	Enum.FontStyle.Normal
+)
+toggleButton.TextColor3 = Color3.new(0.49, 0.49, 0.49)
+toggleButton.Text = "(G) Chibaku Tensei: ..."
+toggleButton.AnchorPoint = Vector2.new(0, 1)
+toggleButton.BackgroundColor3 = Color3.new(0.176, 0.176, 0.176)
+toggleButton.Position = UDim2.new(0, 10, 1, -10)
+toggleButton.BorderSizePixel = 0
+toggleButton.BorderColor3 = Color3.new()
+toggleButton.TextSize = 16
+toggleButton.Size = UDim2.new(0, 200, 0, 25)
+toggleButton.Parent = naturalDisasterSurvivalGravityInversionGui
+
+local uIStroke = Instance.new("UIStroke")
+uIStroke.Name = "UIStroke"
+uIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+uIStroke.Color = Color3.new(0.49, 0.49, 0.49)
+uIStroke.Thickness = 2
+uIStroke.Parent = toggleButton
+
+local uICorner = Instance.new("UICorner")
+uICorner.Name = "UICorner"
+uICorner.CornerRadius = UDim.new(0, 4)
+uICorner.Parent = toggleButton
+
+local uIScale = Instance.new("UIScale")
+uIScale.Name = "UIScale"
+uIScale.Parent = naturalDisasterSurvivalGravityInversionGui
+
+local Players    = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local client           = Players.LocalPlayer
+local inversionEnabled = false
+
+-- =============================================
+-- SIMULATION RADIUS: kiểm soát toàn bộ map
+-- =============================================
+client.ReplicationFocus = workspace
+
+if typeof(sethiddenproperty) == "function" then
+	RunService.Heartbeat:Connect(function()
+		if inversionEnabled then
+			sethiddenproperty(client, "SimulationRadius", math.huge)
+		end
+	end)
+else
+	game:GetService("StarterGui"):SetCore("SendNotification", {
+		Title = "Warning",
+		Text = '"sethiddenproperty" không được hỗ trợ — part ở xa có thể không bị hút',
+		Icon = "rbxasset://textures/StudioSharedUI/alert_error@2x.png",
+		Button1 = "Close",
+		Duration = 5
+	})
+end
+
+-- =============================================
+-- ĐỢI STRUCTURE FOLDER
+-- =============================================
+local structureFolder
+
+repeat
+	for _, child in pairs(workspace:GetChildren()) do
+		if child:IsA("Folder") and child.Name == "Structure" then
+			structureFolder = child
+		end
+	end
+	if not structureFolder then task.wait() end
+until structureFolder
+
+-- =============================================
+-- LƯU TRỮ
+-- =============================================
+local instances     = {}   -- list tất cả attachment + linearVelocity để dọn khi tắt
+local capturedParts = {}   -- set: part đang bị kiểm soát (tránh gắn 2 lần)
+local lvMap         = {}   -- dict: part -> LinearVelocity (cho heartbeat cập nhật nhanh)
+
+-- =============================================
+-- TÂM HÚT: trước mặt nhân vật 10 studs, cao 8 studs
+-- =============================================
+local function getCenterPos()
+	local character = client.Character
+	if not character then return nil end
+	local rootPart = character:FindFirstChild("HumanoidRootPart")
+	if not rootPart then return nil end
+	return rootPart.Position
+		+ rootPart.CFrame.LookVector * 40
+		+ Vector3.new(0, 8, 0)
+end
+
+-- =============================================
+-- GẮN LỰC HÚT VÀO PART
+-- Không giới hạn khoảng cách — toàn bộ map
+-- =============================================
+local function applyAttraction(instance)
+	if
+		inversionEnabled
+		and instance:IsA("BasePart")
+		and not instance.Anchored
+		and not capturedParts[instance]
+	then
+		capturedParts[instance] = true
+
+		local attachment = Instance.new("Attachment", instance)
+		table.insert(instances, attachment)
+
+		local linearVelocity = Instance.new("LinearVelocity")
+		linearVelocity.MaxForce               = math.huge
+		linearVelocity.VectorVelocity         = Vector3.new(0, 0, 0)
+		linearVelocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+		linearVelocity.Attachment0            = attachment
+		linearVelocity.Parent                 = instance
+		table.insert(instances, linearVelocity)
+
+		lvMap[instance] = linearVelocity
+	end
+end
+
+-- =============================================
+-- HEARTBEAT: cập nhật lực hút mỗi frame
+--
+-- Tốc độ hút nhanh để hình thành hình cầu nhanh:
+--   - Rất xa (>300 studs) : 220 studs/s
+--   - Xa     (>100 studs) : 120–180 studs/s
+--   - Vừa   (>20  studs) : 50–120 studs/s
+--   - Gần   (<20  studs) : 20–50  studs/s  (chậm lại khi sắp tới nơi)
+--   - Tại tâm (<1.5 studs): ghim cứng
+-- =============================================
+local attractionConnection
+
+local function startAttractionLoop()
+	attractionConnection = RunService.Heartbeat:Connect(function()
+		if not inversionEnabled then return end
+
+		local centerPos = getCenterPos()
+		if not centerPos then return end
+
+		for part, lv in pairs(lvMap) do
+			if part and part.Parent and lv and lv.Parent then
+				local direction = centerPos - part.Position
+				local distance  = direction.Magnitude
+
+				if distance > 1.5 then
+					local speed
+
+					if distance > 300 then
+						speed = 220
+					elseif distance > 100 then
+						speed = math.clamp(distance * 1.2, 120, 180)
+					elseif distance > 20 then
+						speed = math.clamp(distance * 1.5, 50, 120)
+					else
+						speed = math.clamp(distance * 1.8, 20, 50)
+					end
+
+					lv.VectorVelocity = direction.Unit * speed
+				else
+					-- Đã đến tâm, ghim cứng
+					lv.VectorVelocity = Vector3.new(0, 0, 0)
+				end
+			else
+				-- Part hoặc LV đã bị xoá, dọn khỏi map
+				lvMap[part]         = nil
+				capturedParts[part] = nil
+			end
+		end
+	end)
+end
+
+-- =============================================
+-- NỔ TUNG khi tắt
+-- =============================================
+local function explodeAllParts()
+	local centerPos = getCenterPos() or Vector3.new(0, 10, 0)
+
+	-- Xoá toàn bộ LinearVelocity + Attachment cũ
+	for _, inst in pairs(instances) do
+		pcall(function() inst:Destroy() end)
+	end
+	table.clear(instances)
+	table.clear(lvMap)
+
+	-- Áp lực nổ từng part
+	for part, _ in pairs(capturedParts) do
+		if part and part.Parent and part:IsA("BasePart") and not part.Anchored then
+			local dir  = part.Position - centerPos
+			local dist = dir.Magnitude
+
+			if dist < 0.1 then
+				dir = Vector3.new(
+					math.random(-10, 10),
+					math.random(5, 15),
+					math.random(-10, 10)
+				)
+			end
+
+			local blastAtt = Instance.new("Attachment", part)
+			local blastLV  = Instance.new("LinearVelocity")
+			blastLV.MaxForce               = math.huge
+			blastLV.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+			blastLV.Attachment0            = blastAtt
+			blastLV.Parent                 = part
+
+			local blastSpeed = math.random(250, 400)
+			blastLV.VectorVelocity = dir.Unit * blastSpeed
+				+ Vector3.new(0, math.random(60, 140), 0)
+
+			task.delay(0.15, function()
+				pcall(function()
+					blastLV:Destroy()
+					blastAtt:Destroy()
+				end)
+			end)
+		end
+	end
+
+	table.clear(capturedParts)
+end
+
+-- =============================================
+-- CHAT
+-- =============================================
+local function sendChat(message)
+	local ok = pcall(function()
+		game:GetService("ReplicatedStorage")
+			:WaitForChild("DefaultChatSystemChatEvents", 5)
+			:WaitForChild("SayMessageRequest", 5)
+			:FireServer(message, "All")
+	end)
+	if not ok then
+		pcall(function()
+			game:GetService("Chat"):Chat(
+				client.Character and client.Character:FindFirstChild("Head"),
+				message,
+				Enum.ChatColor.Blue
+			)
+		end)
+	end
+end
+
+-- =============================================
+-- TOGGLE
+-- =============================================
+local connection
+local thread
+
+function toggle()
+	inversionEnabled = not inversionEnabled
+
+	local color = Color3.new(1, 0, 0)
+	if inversionEnabled then
+		color = Color3.new(0, 1, 0)
+		toggleButton.Text = "(G) Chibaku Tensei: ON"
+	else
+		toggleButton.Text = "(G) Chibaku Tensei: OFF"
+	end
+	toggleButton.TextColor3 = color
+	uIStroke.Color = color
+
+	if thread then task.cancel(thread) end
+
+	thread = task.spawn(function()
+		if inversionEnabled then
+			-- ===== BẬT =====
+			sendChat("chibaku tensei")
+
+			if connection then connection:Disconnect() connection = nil end
+
+			startAttractionLoop()
+
+			-- Quét toàn bộ Structure folder
+			for _, descendant in pairs(structureFolder:GetDescendants()) do
+				applyAttraction(descendant)
+			end
+
+			-- Theo dõi part mới spawn trong Structure
+			connection = structureFolder.DescendantAdded:Connect(applyAttraction)
+
+		else
+			-- ===== TẮT =====
+			sendChat("aaaaaaaa")
+
+			if attractionConnection then
+				attractionConnection:Disconnect()
+				attractionConnection = nil
+			end
+
+			if connection then
+				connection:Disconnect()
+				connection = nil
+			end
+
+			explodeAllParts()
+		end
+	end)
+end
+
+-- Gắn nút và phím G
+toggleButton.Activated:Connect(toggle)
+game:GetService("ContextActionService"):BindAction(
+	"toggleChibakuTensei",
+	function(_, inputState)
+		if inputState == Enum.UserInputState.Begin then
+			toggle()
+		end
+	end,
+	false,
+	Enum.KeyCode.G
+)
+
+-- Khởi động (OFF)
+toggle()
+
+-- Scale UI
+function updateUIScale()
+	uIScale.Scale = naturalDisasterSurvivalGravityInversionGui.AbsoluteSize.Y / 400
+end
+naturalDisasterSurvivalGravityInversionGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateUIScale)
+updateUIScale()
+
+naturalDisasterSurvivalGravityInversionGui.Parent = game:GetService("CoreGui")
