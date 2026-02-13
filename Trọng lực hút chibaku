@@ -1,58 +1,135 @@
--- Chibaku Tensei - Unlimited Range + Fast Sphere
--- G lần 1: hút TẤT CẢ mọi thứ trên map về thành hình cầu trước mặt + chat "chibaku tensei"
--- G lần 2: nổ tung + chat "aaaaaaaa"
+-- Chibaku Tensei - Radius Control
+-- G : bật hút / tắt + nổ
+-- F : bật = bán kính → 500 | tắt = bán kính → 50
+-- ◄ ► : giảm / tăng bán kính 5 studs
 
-local naturalDisasterSurvivalGravityInversionGui = Instance.new("ScreenGui")
-naturalDisasterSurvivalGravityInversionGui.Name = tostring(math.random())
-naturalDisasterSurvivalGravityInversionGui.ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets
-naturalDisasterSurvivalGravityInversionGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-naturalDisasterSurvivalGravityInversionGui.ResetOnSpawn = false
-naturalDisasterSurvivalGravityInversionGui.IgnoreGuiInset = true
-naturalDisasterSurvivalGravityInversionGui.ClipToDeviceSafeArea = false
-naturalDisasterSurvivalGravityInversionGui.DisplayOrder = -1e+09
+local gui = Instance.new("ScreenGui")
+gui.Name = tostring(math.random())
+gui.ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.ClipToDeviceSafeArea = false
+gui.DisplayOrder = -1e+09
 
-local toggleButton = Instance.new("TextButton")
-toggleButton.Name = "ToggleButton"
-toggleButton.FontFace = Font.new(
+local uIScale = Instance.new("UIScale")
+uIScale.Parent = gui
+
+-- =============================================
+-- FRAME chứa 2 hàng UI
+-- Hàng 1: Toggle button (full width)
+-- Hàng 2: ◄  [bán kính]  ►   +  nhãn phím F
+-- =============================================
+local frame = Instance.new("Frame")
+frame.BackgroundTransparency = 1
+frame.AnchorPoint = Vector2.new(0, 1)
+frame.Position = UDim2.new(0, 10, 1, -10)
+frame.Size = UDim2.new(0, 260, 0, 58)
+frame.Parent = gui
+
+local FONT = Font.new(
 	"rbxasset://fonts/families/SourceSansPro.json",
 	Enum.FontWeight.Bold,
 	Enum.FontStyle.Normal
 )
-toggleButton.TextColor3 = Color3.new(0.49, 0.49, 0.49)
-toggleButton.Text = "(G) Chibaku Tensei: ..."
-toggleButton.AnchorPoint = Vector2.new(0, 1)
-toggleButton.BackgroundColor3 = Color3.new(0.176, 0.176, 0.176)
-toggleButton.Position = UDim2.new(0, 10, 1, -10)
-toggleButton.BorderSizePixel = 0
-toggleButton.BorderColor3 = Color3.new()
-toggleButton.TextSize = 16
-toggleButton.Size = UDim2.new(0, 200, 0, 25)
-toggleButton.Parent = naturalDisasterSurvivalGravityInversionGui
 
-local uIStroke = Instance.new("UIStroke")
-uIStroke.Name = "UIStroke"
-uIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-uIStroke.Color = Color3.new(0.49, 0.49, 0.49)
-uIStroke.Thickness = 2
-uIStroke.Parent = toggleButton
+local function mkBtn(txt, sz, bg, x, y, w, h)
+	local b = Instance.new("TextButton")
+	b.FontFace        = FONT
+	b.Text            = txt
+	b.TextColor3      = Color3.new(0.92, 0.92, 0.92)
+	b.TextSize        = sz
+	b.BackgroundColor3 = bg
+	b.BorderSizePixel = 0
+	b.Size            = UDim2.new(0, w, 0, h)
+	b.Position        = UDim2.new(0, x, 0, y)
+	b.Parent          = frame
+	local co = Instance.new("UICorner"); co.CornerRadius = UDim.new(0,4); co.Parent = b
+	local st = Instance.new("UIStroke")
+	st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	st.Color     = Color3.new(0.38, 0.38, 0.38)
+	st.Thickness = 2
+	st.Parent    = b
+	return b, st
+end
 
-local uICorner = Instance.new("UICorner")
-uICorner.Name = "UICorner"
-uICorner.CornerRadius = UDim.new(0, 4)
-uICorner.Parent = toggleButton
+local function mkLbl(x, y, w, h)
+	local l = Instance.new("TextLabel")
+	l.FontFace        = FONT
+	l.TextColor3      = Color3.new(0.95, 0.95, 0.95)
+	l.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
+	l.BorderSizePixel = 0
+	l.TextSize        = 13
+	l.Size            = UDim2.new(0, w, 0, h)
+	l.Position        = UDim2.new(0, x, 0, y)
+	l.Parent          = frame
+	local co = Instance.new("UICorner"); co.CornerRadius = UDim.new(0,4); co.Parent = l
+	local st = Instance.new("UIStroke")
+	st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	st.Color     = Color3.new(0.38, 0.38, 0.38)
+	st.Thickness = 2
+	st.Parent    = l
+	return l
+end
 
-local uIScale = Instance.new("UIScale")
-uIScale.Name = "UIScale"
-uIScale.Parent = naturalDisasterSurvivalGravityInversionGui
+-- Hàng 1: Toggle
+local toggleButton, toggleStroke = mkBtn("(G) Chibaku Tensei: OFF", 15, Color3.new(0.176,0.176,0.176), 0, 0, 260, 25)
+toggleButton.TextColor3 = Color3.new(1, 0, 0)
+toggleStroke.Color      = Color3.new(1, 0, 0)
 
-local Players    = game:GetService("Players")
-local RunService = game:GetService("RunService")
-
-local client           = Players.LocalPlayer
-local inversionEnabled = false
+-- Hàng 2: ◄  [label]  ►   [F: MAX/RESET]
+local btnLeft,  _ = mkBtn("◄",      14, Color3.new(0.15,0.15,0.15),   0, 31,  28, 25)
+local radiusLbl   = mkLbl(32, 31, 48, 25)
+local btnRight, _ = mkBtn("►",      14, Color3.new(0.15,0.15,0.15),  84, 31,  28, 25)
+local fLabel      = mkLbl(118, 31, 142, 25)   -- nhãn trạng thái phím F
 
 -- =============================================
--- SIMULATION RADIUS: kiểm soát toàn bộ map
+-- SERVICES
+-- =============================================
+local Players    = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local client     = Players.LocalPlayer
+
+local inversionEnabled = false
+
+-- Bán kính
+local orbitRadius  = 50
+local RADIUS_STEP  = 5
+local RADIUS_MIN   = 5
+local RADIUS_MAX   = 1000
+local radiusMaxed  = false   -- trạng thái phím F
+
+local function updateLabels()
+	radiusLbl.Text = tostring(orbitRadius)
+	if radiusMaxed then
+		fLabel.Text       = "(F) Radius: MAX 1000"
+		fLabel.TextColor3 = Color3.new(1, 0.8, 0.1)
+	else
+		fLabel.Text       = "(F) Radius: 50"
+		fLabel.TextColor3 = Color3.new(0.6, 0.6, 0.6)
+	end
+end
+updateLabels()
+
+btnLeft.Activated:Connect(function()
+	orbitRadius = math.max(RADIUS_MIN, orbitRadius - RADIUS_STEP)
+	updateLabels()
+end)
+
+btnRight.Activated:Connect(function()
+	orbitRadius = math.min(RADIUS_MAX, orbitRadius + RADIUS_STEP)
+	updateLabels()
+end)
+
+-- Phím F toggle max / reset
+local function toggleRadius()
+	radiusMaxed = not radiusMaxed
+	orbitRadius = radiusMaxed and 1000 or 50
+	updateLabels()
+end
+
+-- =============================================
+-- SIMULATION RADIUS
 -- =============================================
 client.ReplicationFocus = workspace
 
@@ -76,7 +153,6 @@ end
 -- ĐỢI STRUCTURE FOLDER
 -- =============================================
 local structureFolder
-
 repeat
 	for _, child in pairs(workspace:GetChildren()) do
 		if child:IsA("Folder") and child.Name == "Structure" then
@@ -89,26 +165,23 @@ until structureFolder
 -- =============================================
 -- LƯU TRỮ
 -- =============================================
-local instances     = {}   -- list tất cả attachment + linearVelocity để dọn khi tắt
-local capturedParts = {}   -- set: part đang bị kiểm soát (tránh gắn 2 lần)
-local lvMap         = {}   -- dict: part -> LinearVelocity (cho heartbeat cập nhật nhanh)
+local instances     = {}
+local capturedParts = {}
+local lvMap         = {}
 
 -- =============================================
--- TÂM HÚT: trước mặt nhân vật 10 studs, cao 8 studs
+-- TÂM HÚT
 -- =============================================
 local function getCenterPos()
-	local character = client.Character
-	if not character then return nil end
-	local rootPart = character:FindFirstChild("HumanoidRootPart")
-	if not rootPart then return nil end
-	return rootPart.Position
-		+ rootPart.CFrame.LookVector * 40
-		+ Vector3.new(0, 8, 0)
+	local ch = client.Character
+	if not ch then return nil end
+	local rp = ch:FindFirstChild("HumanoidRootPart")
+	if not rp then return nil end
+	return rp.Position + rp.CFrame.LookVector * orbitRadius + Vector3.new(0, 8, 0)
 end
 
 -- =============================================
--- GẮN LỰC HÚT VÀO PART
--- Không giới hạn khoảng cách — toàn bộ map
+-- GẮN LỰC HÚT
 -- =============================================
 local function applyAttraction(instance)
 	if
@@ -119,30 +192,23 @@ local function applyAttraction(instance)
 	then
 		capturedParts[instance] = true
 
-		local attachment = Instance.new("Attachment", instance)
-		table.insert(instances, attachment)
+		local att = Instance.new("Attachment", instance)
+		table.insert(instances, att)
 
-		local linearVelocity = Instance.new("LinearVelocity")
-		linearVelocity.MaxForce               = math.huge
-		linearVelocity.VectorVelocity         = Vector3.new(0, 0, 0)
-		linearVelocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
-		linearVelocity.Attachment0            = attachment
-		linearVelocity.Parent                 = instance
-		table.insert(instances, linearVelocity)
+		local lv = Instance.new("LinearVelocity")
+		lv.MaxForce               = math.huge
+		lv.VectorVelocity         = Vector3.new(0, 0, 0)
+		lv.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+		lv.Attachment0            = att
+		lv.Parent                 = instance
+		table.insert(instances, lv)
 
-		lvMap[instance] = linearVelocity
+		lvMap[instance] = lv
 	end
 end
 
 -- =============================================
--- HEARTBEAT: cập nhật lực hút mỗi frame
---
--- Tốc độ hút nhanh để hình thành hình cầu nhanh:
---   - Rất xa (>300 studs) : 220 studs/s
---   - Xa     (>100 studs) : 120–180 studs/s
---   - Vừa   (>20  studs) : 50–120 studs/s
---   - Gần   (<20  studs) : 20–50  studs/s  (chậm lại khi sắp tới nơi)
---   - Tại tâm (<1.5 studs): ghim cứng
+-- HEARTBEAT
 -- =============================================
 local attractionConnection
 
@@ -150,34 +216,26 @@ local function startAttractionLoop()
 	attractionConnection = RunService.Heartbeat:Connect(function()
 		if not inversionEnabled then return end
 
-		local centerPos = getCenterPos()
-		if not centerPos then return end
+		local center = getCenterPos()
+		if not center then return end
 
 		for part, lv in pairs(lvMap) do
 			if part and part.Parent and lv and lv.Parent then
-				local direction = centerPos - part.Position
-				local distance  = direction.Magnitude
+				local dir  = center - part.Position
+				local dist = dir.Magnitude
 
-				if distance > 1.5 then
+				if dist > 1.5 then
 					local speed
-
-					if distance > 300 then
-						speed = 220
-					elseif distance > 100 then
-						speed = math.clamp(distance * 1.2, 120, 180)
-					elseif distance > 20 then
-						speed = math.clamp(distance * 1.5, 50, 120)
-					else
-						speed = math.clamp(distance * 1.8, 20, 50)
+					if     dist > 300 then speed = 220
+					elseif dist > 100 then speed = math.clamp(dist * 1.2, 120, 180)
+					elseif dist > 20  then speed = math.clamp(dist * 1.5,  50, 120)
+					else                    speed = math.clamp(dist * 1.8,  20,  50)
 					end
-
-					lv.VectorVelocity = direction.Unit * speed
+					lv.VectorVelocity = dir.Unit * speed
 				else
-					-- Đã đến tâm, ghim cứng
 					lv.VectorVelocity = Vector3.new(0, 0, 0)
 				end
 			else
-				-- Part hoặc LV đã bị xoá, dọn khỏi map
 				lvMap[part]         = nil
 				capturedParts[part] = nil
 			end
@@ -186,48 +244,35 @@ local function startAttractionLoop()
 end
 
 -- =============================================
--- NỔ TUNG khi tắt
+-- NỔ TUNG
 -- =============================================
 local function explodeAllParts()
-	local centerPos = getCenterPos() or Vector3.new(0, 10, 0)
+	local center = getCenterPos() or Vector3.new(0, 10, 0)
 
-	-- Xoá toàn bộ LinearVelocity + Attachment cũ
 	for _, inst in pairs(instances) do
 		pcall(function() inst:Destroy() end)
 	end
 	table.clear(instances)
 	table.clear(lvMap)
 
-	-- Áp lực nổ từng part
-	for part, _ in pairs(capturedParts) do
+	for part in pairs(capturedParts) do
 		if part and part.Parent and part:IsA("BasePart") and not part.Anchored then
-			local dir  = part.Position - centerPos
-			local dist = dir.Magnitude
-
-			if dist < 0.1 then
-				dir = Vector3.new(
-					math.random(-10, 10),
-					math.random(5, 15),
-					math.random(-10, 10)
-				)
+			local dir = part.Position - center
+			if dir.Magnitude < 0.1 then
+				dir = Vector3.new(math.random(-10,10), math.random(5,15), math.random(-10,10))
 			end
 
-			local blastAtt = Instance.new("Attachment", part)
-			local blastLV  = Instance.new("LinearVelocity")
-			blastLV.MaxForce               = math.huge
-			blastLV.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
-			blastLV.Attachment0            = blastAtt
-			blastLV.Parent                 = part
-
-			local blastSpeed = math.random(250, 400)
-			blastLV.VectorVelocity = dir.Unit * blastSpeed
+			local bAtt = Instance.new("Attachment", part)
+			local bLV  = Instance.new("LinearVelocity")
+			bLV.MaxForce               = math.huge
+			bLV.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+			bLV.Attachment0            = bAtt
+			bLV.Parent                 = part
+			bLV.VectorVelocity         = dir.Unit * math.random(250, 400)
 				+ Vector3.new(0, math.random(60, 140), 0)
 
 			task.delay(0.15, function()
-				pcall(function()
-					blastLV:Destroy()
-					blastAtt:Destroy()
-				end)
+				pcall(function() bLV:Destroy(); bAtt:Destroy() end)
 			end)
 		end
 	end
@@ -238,102 +283,89 @@ end
 -- =============================================
 -- CHAT
 -- =============================================
-local function sendChat(message)
+local function sendChat(msg)
 	local ok = pcall(function()
 		game:GetService("ReplicatedStorage")
 			:WaitForChild("DefaultChatSystemChatEvents", 5)
 			:WaitForChild("SayMessageRequest", 5)
-			:FireServer(message, "All")
+			:FireServer(msg, "All")
 	end)
 	if not ok then
 		pcall(function()
 			game:GetService("Chat"):Chat(
 				client.Character and client.Character:FindFirstChild("Head"),
-				message,
-				Enum.ChatColor.Blue
+				msg, Enum.ChatColor.Blue
 			)
 		end)
 	end
 end
 
 -- =============================================
--- TOGGLE
+-- TOGGLE G
 -- =============================================
 local connection
 local thread
 
-function toggle()
+local function toggle()
 	inversionEnabled = not inversionEnabled
 
-	local color = Color3.new(1, 0, 0)
 	if inversionEnabled then
-		color = Color3.new(0, 1, 0)
-		toggleButton.Text = "(G) Chibaku Tensei: ON"
+		toggleButton.Text       = "(G) Chibaku Tensei: ON"
+		toggleButton.TextColor3 = Color3.new(0, 1, 0)
+		toggleStroke.Color      = Color3.new(0, 1, 0)
 	else
-		toggleButton.Text = "(G) Chibaku Tensei: OFF"
+		toggleButton.Text       = "(G) Chibaku Tensei: OFF"
+		toggleButton.TextColor3 = Color3.new(1, 0, 0)
+		toggleStroke.Color      = Color3.new(1, 0, 0)
 	end
-	toggleButton.TextColor3 = color
-	uIStroke.Color = color
 
 	if thread then task.cancel(thread) end
 
 	thread = task.spawn(function()
 		if inversionEnabled then
-			-- ===== BẬT =====
 			sendChat("chibaku tensei")
-
-			if connection then connection:Disconnect() connection = nil end
-
+			if connection then connection:Disconnect(); connection = nil end
 			startAttractionLoop()
-
-			-- Quét toàn bộ Structure folder
-			for _, descendant in pairs(structureFolder:GetDescendants()) do
-				applyAttraction(descendant)
+			for _, desc in pairs(structureFolder:GetDescendants()) do
+				applyAttraction(desc)
 			end
-
-			-- Theo dõi part mới spawn trong Structure
 			connection = structureFolder.DescendantAdded:Connect(applyAttraction)
-
 		else
-			-- ===== TẮT =====
 			sendChat("aaaaaaaa")
-
 			if attractionConnection then
 				attractionConnection:Disconnect()
 				attractionConnection = nil
 			end
-
-			if connection then
-				connection:Disconnect()
-				connection = nil
-			end
-
+			if connection then connection:Disconnect(); connection = nil end
 			explodeAllParts()
 		end
 	end)
 end
 
--- Gắn nút và phím G
+-- =============================================
+-- BIND PHÍM
+-- =============================================
 toggleButton.Activated:Connect(toggle)
+
 game:GetService("ContextActionService"):BindAction(
-	"toggleChibakuTensei",
-	function(_, inputState)
-		if inputState == Enum.UserInputState.Begin then
-			toggle()
-		end
-	end,
-	false,
-	Enum.KeyCode.G
+	"CT_toggleG",
+	function(_, st) if st == Enum.UserInputState.Begin then toggle() end end,
+	false, Enum.KeyCode.G
 )
 
--- Khởi động (OFF)
-toggle()
+game:GetService("ContextActionService"):BindAction(
+	"CT_toggleF",
+	function(_, st) if st == Enum.UserInputState.Begin then toggleRadius() end end,
+	false, Enum.KeyCode.F
+)
 
--- Scale UI
-function updateUIScale()
-	uIScale.Scale = naturalDisasterSurvivalGravityInversionGui.AbsoluteSize.Y / 400
+-- =============================================
+-- HIỂN THỊ GUI
+-- =============================================
+gui.Parent = game:GetService("CoreGui")
+
+local function updateUIScale()
+	uIScale.Scale = gui.AbsoluteSize.Y / 400
 end
-naturalDisasterSurvivalGravityInversionGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateUIScale)
+gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateUIScale)
 updateUIScale()
-
-naturalDisasterSurvivalGravityInversionGui.Parent = game:GetService("CoreGui")
